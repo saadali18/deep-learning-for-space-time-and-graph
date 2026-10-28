@@ -36,11 +36,11 @@ def main():
 
     dir_counts, edges = np.histogram(theta, bins=18, range=(0, 360))
     dir_frac = dir_counts / n
-    fig, axes = plt.subplots(1, 2, figsize=(9, 3.2))
+    fig, axes = plt.subplots(1, 2, figsize=(9, 3.2), gridspec_kw=dict(wspace=0.3))
     ax = axes[0]
     ax.bar(edges[:-1], dir_frac, width=20, align="edge", color=SERIES[0], edgecolor="white", linewidth=1)
     ax.axhline(1 / 18, color=INK, lw=1.2, ls="--")
-    ax.text(362, 1 / 18, " uniform\n 1/18", va="center", fontsize=8, color=INK2)
+    ax.text(3, 1 / 18 + 0.002, "uniform = 1/18", va="bottom", fontsize=7.5, color=INK)
     ax.set_xticks(range(0, 361, 45))
     ax.set_xlim(0, 360)
     ax.set_xlabel("flow direction θ (degrees; 0° = right, 90° = up)")
@@ -56,7 +56,7 @@ def main():
     ax.set_xlabel("flow speed (pixels per frame)")
     ax.set_ylabel("fraction of kept pixels")
     ax.set_title("(b) speed")
-    ax.set_xlim(0.5, min(12, speed.max() + 0.5))
+    ax.set_xlim(0.5, min(12, np.percentile(speed, 99.9) + 0.75))
     save(fig, "fig1_flow.png")
 
     # summary statistics used in the answers to Q2.1
@@ -69,6 +69,22 @@ def main():
                  quadrant_frac=quad,
                  mean_dx=float(dx.mean()), mean_dy=float(dy.mean()),
                  frac_right=float((dx > 0).mean()), frac_up=float((dy < 0).mean()))
+    # how much would the direction histogram move if every video were mirrored / rotated,
+    # compared with the sampling noise between two disjoint sets of 50 training videos?
+    def hist(th):
+        return np.histogram(th % 360.0, bins=18, range=(0, 360))[0] / len(th)
+
+    def tv(a, b):
+        return 0.5 * float(np.abs(a - b).sum())
+
+    h = hist(theta)
+    dx2, dy2 = pooled_flow(split(load_videos(), "train")[50:100])
+    h2 = hist(np.degrees(np.arctan2(-dy2, dx2)))
+    stats["tv_mirror"] = tv(h, hist(180.0 - theta))  # M maps direction theta -> 180 - theta
+    stats["tv_rot90"] = tv(h, hist(theta + 90.0))    # R maps direction theta -> theta + 90
+    stats["tv_rot180"] = tv(h, hist(theta + 180.0))
+    stats["tv_other_50_videos"] = tv(h, h2)
+    stats["tv_uniform"] = tv(h, np.full(18, 1 / 18))
     print(json.dumps(stats, indent=1))
     with open(os.path.join(RES_DIR, "figure1_stats.json"), "w") as fh:
         json.dump(stats, fh, indent=1)
