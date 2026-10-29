@@ -8,7 +8,7 @@ import torch
 from mm.data import batch_window, to_float
 from mm.evaluate import TRANSFORMS, consistency, get_device, predict
 from mm.style import GIF_DIR, INK2, RES_DIR, SERIES, plt, save
-from mm.viz import grid, overlap_profile, save_gif
+from mm.viz import grid, n_blobs, overlap_profile, save_gif
 
 SEL_PATH = os.path.join(RES_DIR, "figure_videos.json")
 T_NAMES = {"M": "mirror", "R": "rotation"}
@@ -73,7 +73,8 @@ def pick_fig5_video(videos):
         shown.update(1 + k * i for i in range(7))  # five inputs and the first two targets
     shown = sorted(f - 1 for f in shown if f <= 20)
     for i in range(videos.shape[0]):
-        if overlap_profile(videos[i])[shown].max() < 0.02:
+        # exactly two well-separated blobs (the two digits) in every displayed frame
+        if all(n_blobs(videos[i, f, 0].numpy()) == 2 for f in shown):
             return i
     raise RuntimeError("no non-overlapping video")
 

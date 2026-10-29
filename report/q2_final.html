@@ -1,0 +1,18 @@
+<h2>5. The Final Model</h2>
+<p><b>Symmetrised forecaster</b> (<span class="mono">mm/models.py: Symmetrised</span>). The eight transformed copies
+<i>g</i>(<i>X</i>), <i>g</i> ∈ <i>G</i>, are stacked into one batch of 8<i>B</i> videos. The trained model runs once on
+that batch, each output is mapped back with <i>g</i><sup>−1</sup>, and the eight results are averaged (Eq. 7). Every
+transformation acts frame by frame on all five frames, so the 9-step rollout and the feedback of predictions happen
+<i>inside</i> each transformed copy.</p>
+
+<div class="qa"><b>Why f̄ has C<sub>M</sub> = C<sub>R</sub> = 0 exactly, for any f.</b>
+<p>Let <i>T</i> ∈ <i>G</i> (in particular <i>T</i> = <i>M</i> or <i>R</i>). Then</p>
+<div class="eq">\[ \bar f(TX)=\frac18\sum_{g\in G} g^{-1}\big(f(gTX)\big)\;\overset{h\,=\,gT}{=}\;\frac18\sum_{h\in G}(hT^{-1})^{-1}\big(f(hX)\big)=\frac18\sum_{h\in G}T\,h^{-1}\big(f(hX)\big)=T\Big(\frac18\sum_{h\in G}h^{-1}\big(f(hX)\big)\Big)=T\big(\bar f(X)\big). \]</div>
+<p>The substitution <i>h</i> = <i>gT</i> is valid because <i>G</i> is a group: right-multiplying by <i>T</i> just permutes
+its eight elements, so the sum runs over the same set. (<i>hT</i><sup>−1</sup>)<sup>−1</sup> = <i>T h</i><sup>−1</sup>,
+and <i>T</i> can be taken out of the average because a pixel permutation is linear. Hence
+<i>f̄</i>(<i>TX</i>) = <i>T</i>(<i>f̄</i>(<i>X</i>)) for every input, so C<sub><i>T</i></sub> = 0. Nothing about
+<i>f</i> was used, so this holds for any forecaster, trained or not. In floating point the two sides sum the same eight
+terms in a different order, and they go through the GPU in different batch positions, so the measured values are at
+rounding-error level (Table 6), not exactly zero.</p>
+</div>

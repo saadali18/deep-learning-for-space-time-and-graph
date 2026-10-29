@@ -113,10 +113,14 @@ def table6():
 
 def table_dsel():
     t = load("model_D_selection.json")
-    body = [[n + (" ✓" if n == t["chosen"] else ""), f"{r['params']:,}", fmt(r["val_E5_1x"]), fmt(r["val_E2_1x"]),
-             fmt(r["val_E2_2x"]), fmt(r["val_E2_3x"]), fmt(r["val_E2_mean"])] for n, r in t["candidates"].items()]
-    return html_table(["Candidate", "Params", "val E<sup>(5)</sup> 1×", "val E<sup>(2)</sup> 1×", "val E<sup>(2)</sup> 2×",
-                       "val E<sup>(2)</sup> 3×", "mean val E<sup>(2)</sup>"], body)
+    desc = {"dil12": ("layer 2 dilated ×2 (3×3)", "1 + 2 cells = 12 px"),
+            "k55h46": ("5×5 kernels, 46 hidden", "2 + 2 cells = 16 px"),
+            "p8": ("8×8 patches (8×8 grid)", "2 cells × 8 px = 16 px")}
+    body = [[n + (" ✓ chosen" if n == t["chosen"] else ""), desc[n][0], desc[n][1], f"{r['params']:,}", fmt(r["val_E5_1x"]),
+             fmt(r["val_E2_1x"]), fmt(r["val_E2_2x"]), fmt(r["val_E2_3x"]), fmt(r["val_E2_mean"])]
+            for n, r in t["candidates"].items()]
+    return html_table(["Candidate", "Change vs. A", "Reach", "Params", "val E<sup>(5)</sup> 1×", "val E<sup>(2)</sup> 1×",
+                       "val E<sup>(2)</sup> 2×", "val E<sup>(2)</sup> 3×", "mean val E<sup>(2)</sup>"], body, "res small")
 
 
 TABLES = {"T1": table1, "T2": table2, "T3": table3, "T4": table4, "T5": table5, "T6": table6, "TDSEL": table_dsel}

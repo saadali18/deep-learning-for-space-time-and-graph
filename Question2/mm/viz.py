@@ -18,6 +18,15 @@ def overlap_profile(video):
     return (1 - lit / lit.max()).numpy()
 
 
+def n_blobs(frame_u8):
+    """Number of separate lit blobs (> 0.2 intensity) in a uint8 frame, after a 1-px dilation,
+    so digits that touch or nearly touch count as one blob."""
+    import cv2
+    m = cv2.dilate((np.asarray(frame_u8) > 51).astype(np.uint8), np.ones((3, 3), np.uint8))
+    n, _, stats, _ = cv2.connectedComponentsWithStats(m, connectivity=8)
+    return int((stats[1:, cv2.CC_STAT_AREA] >= 10).sum())
+
+
 def _img(ax, frame, label=None, title=None):
     ax.imshow(np.asarray(frame).squeeze(), cmap="gray", vmin=0, vmax=1, interpolation="nearest")
     ax.set_xticks([])

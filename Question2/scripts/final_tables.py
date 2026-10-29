@@ -1,6 +1,6 @@
 """Table 5 (models A-D), Table 6 (symmetrised models) and Figure 6 (final model on the earlier videos).
 
-usage: python -m scripts.final_tables --final DB   (or D)
+usage: python -m scripts.final_tables            (final model = symmetrised D)
 """
 import argparse
 import json
@@ -25,7 +25,7 @@ def table(names):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--final", default="DB", help="underlying model of the final symmetrised forecaster")
+    ap.add_argument("--final", default="D", help="underlying model of the final symmetrised forecaster")
     ap.add_argument("--with-db", action="store_true", help="also report DB (D+B) in Table 5")
     a = ap.parse_args()
 

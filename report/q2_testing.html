@@ -1,0 +1,153 @@
+<div class="qa"><b>Q2.4</b>
+<p><b>Against the reference predictors</b> (Table 2): model A's E<sup>(5)</sup> = 0.0223 is about half of Blank's (0.0426)
+and about a third of Copy-last's (0.0641), and it beats both at every horizon. Copy-last is <i>worse</i> than Blank because
+a moving digit copied in the wrong place is penalised twice: once where it is drawn but is not, and once where it should
+be but is not. Model A therefore really predicts where the digits go, which neither reference can do.</p>
+<p><b>Error over horizons</b>: MSE grows monotonically from 0.0172 at <i>h</i> = 1 to 0.0261 at <i>h</i> = 5, about +52%.
+The growth slows with <i>h</i> (+0.0034, +0.0022, +0.0017, +0.0016 per step). Figure 2 shows why. Uncertainty about
+position and shape builds up, and under a squared-error loss the best response to uncertainty is to <i>average</i> over
+possibilities, so predictions become smoother and dimmer with each step. They are also fed back as inputs, so the network
+then works from its own blurred frames. Even at <i>h</i> = 5 model A is still 39% below Blank, so the predicted blobs
+remain in roughly the right places.</p>
+<p><b>Overlaps</b>: in video 9013 the 3 and the 2 overlap in the input and separate in the target. Model A does not
+separate them. The two digits melt into one bright blob, which barely moves and loses all digit shape by <i>h</i> = 4–5.
+In video 9007 the 6 and the 9 approach each other. The prediction pulls them together into a single vertical smear, whereas in the truth both digits move
+up and stay distinct. Once the two digits share pixels, the model
+can no longer tell which stroke belongs to which digit or which way each is moving. It falls back to a blurry average of
+both, which is what the squared-error loss rewards under that ambiguity.</p>
+</div>
+
+<div class="qa prereg"><b>Q2.5 — predictions, reproduced verbatim as first written</b>
+<p class="stamp">Committed to the repository before model A was trained or any Testing-the-Baseline experiment was run:
+<span class="mono">Question2/predictions/Q2.5_predictions.md</span>, commit <span class="mono">48c2694</span>.</p>
+<p><b>Mirror test.</b> Model A will mostly pass on <i>motion</i>: mirrored trajectories use directions that are common
+in training, and the convolutional motion rule is local. Mirrored digits, however, are new shapes. I expect E_M to be
+somewhat higher than the original E(5) (roughly 10–30% higher), with the extra error in the later horizons as shape
+distortion or blur rather than wrong motion. C_M will be clearly non-zero but well below E(5).</p>
+<p><b>Rotation test.</b> The same reasoning holds for the motion, but rotated digits look even less familiar than mirrored
+ones. I expect the rotation test to be "passed less well" than the mirror test: E_R &gt; E_M and C_R &gt; C_M. The
+difference should come from appearance, not from motion.</p>
+<p><b>Speed.</b> With an 8 px/step reach and 3.3 px/frame typical motion:
+1×: comfortably inside reach.
+2× (≈ 6.6 px/frame): still mostly inside the reach but near its edge, and faster than anything seen in training. I expect
+noticeable degradation: E(2) clearly higher than at 1×, but predictions still recognisably move the digits.
+3× (≈ 10 px/frame, often above 8 px): beyond the one-step reach for most videos. <b>I predict model A breaks down at
+3×</b>: digits will lag behind or stall near their last input position and blur or fade out. E(2) at 3× will approach or
+exceed Copy-last.</p>
+</div>
+
+<h2>3. Testing the Baseline</h2>
+<h3>Mirror and rotation</h3>
+<p class="tcap"><b>Table 3.</b> Accuracy and consistency under mirror (<i>M</i>) and rotation (<i>R</i>) at 1×,
+<i>t</i> = 1, on the 1,000 test videos. Model A is mean (seed 0, seed 1).</p>
+{{T3}}
+
+FIG3_BLOCK
+
+<figure>
+<img src="../Question2/figures/fig4_consistency_hist_modelA.png" alt="Figure 4: histograms of per-video consistency gaps">
+<figcaption><b>Figure 4.</b> Per-video consistency gaps of model A (seed 0) over the 1,000 test videos, on a log
+x-axis: (a) C<sub>M</sub>, (b) C<sub>R</sub>. The dashed line is the mean. The orange lines mark the videos shown in
+Figure 3, which are the two largest values of each gap.</figcaption>
+</figure>
+
+<div class="qa"><b>Q2.6</b>
+<p>Blank and Copy-last have C<sub>M</sub> = C<sub>R</sub> = 0 exactly. An all-zero frame is unchanged by any pixel
+permutation, and "repeat the last frame" commutes with any transformation applied to all frames. Yet they are the
+<i>worst</i> predictors in Table 3 (E<sub>T</sub> = 0.0426 and 0.0641, against 0.0229–0.0240 for model A). So a small
+consistency gap on its own says nothing about whether a model has learned motion. Any predictor that ignores the content
+in a symmetric way, or does nothing at all, is perfectly consistent. C<sub>T</sub> only asks whether the model treats
+<i>X</i> and <i>T</i>(<i>X</i>) in the same way, not whether that way is right. The transformed error
+E<sub>T</sub> = MSE(<i>f</i>(<i>T X</i>), <i>T Y</i>) supplies the missing half: is the prediction on the transformed
+clip actually correct? The useful reading needs both together. A low C<sub>T</sub> together with E<sub>T</sub> close to
+the model's own E<sup>(5)</sup> means the same accurate rule is applied to transformed scenes. That is the case for model
+A here (E<sub>M</sub> is only 2.6% and E<sub>R</sub> 7.5% above its E<sup>(5)</sup>). A low C<sub>T</sub> with a high
+E<sub>T</sub> just means "consistently wrong".</p>
+</div>
+
+<div class="qa"><b>Q2.7 — Video 9733 under rotation (Figure 3, largest C<sub>R</sub>)</b>
+<p>In the original clip an 8 moves left towards the left wall and a 3 moves right. After the 90° anticlockwise rotation,
+the left wall becomes the <i>bottom</i> wall. The rotated 8 (an "∞") travels down-left, hits the bottom wall at about
+<i>h</i> = 2, and bounces back up. The rotated 3 (an "m") moves straight down at about 3.5 px/frame. Below, (row, column)
+is the intensity centroid of each digit in the 64×64 frame, from row (2) <i>R</i>(<i>Y</i>), row (3)
+<i>f</i>(<i>R X</i>) and row (4) <i>R</i>(<i>f</i>(<i>X</i>)):</p>
+<table class="spec">
+<thead><tr><th></th><th><i>h</i>=1</th><th><i>h</i>=2</th><th><i>h</i>=3</th><th><i>h</i>=4</th><th><i>h</i>=5</th></tr></thead>
+<tbody>
+<tr><td>"∞" (rotated 8), truth</td><td>(46.6, 42.3)</td><td>(48.6, 39.3)</td><td>(46.6, 37.3)</td><td>(43.6, 34.3)</td><td>(40.6, 33.8)</td></tr>
+<tr><td>"∞", row 3: <i>f</i>(<i>R X</i>)</td><td>(46.5, 40.6)</td><td>(48.1, 38.6)</td><td>(48.9, 36.2)</td><td>(49.0, 33.7)</td><td>(47.6, 32.1)</td></tr>
+<tr><td>"∞", row 4: <i>R</i>(<i>f</i>(<i>X</i>))</td><td>(46.6, 40.7)</td><td>(47.9, 38.4)</td><td>(47.6, 36.3)</td><td>(45.9, 34.4)</td><td>(42.8, 33.3)</td></tr>
+<tr><td>"m" (rotated 3), truth</td><td>(12.7, 40.0)</td><td>(16.7, 41.0)</td><td>(20.7, 42.0)</td><td>(23.7, 42.0)</td><td>(26.9, 42.7)</td></tr>
+<tr><td>"m", row 3</td><td>(12.1, 38.6)</td><td>(11.7, 39.4)</td><td>(15.8, 40.4)</td><td>(20.1, 40.2)</td><td>(22.2, 40.8)</td></tr>
+<tr><td>"m", row 4</td><td>(13.2, 38.5)</td><td>(15.6, 39.1)</td><td>(19.7, 39.6)</td><td>(22.8, 39.6)</td><td>(25.0, 39.5)</td></tr>
+</tbody></table>
+<p>Rows 3 and 4 disagree in two specific ways:</p>
+<ol>
+<li><b>The bounce comes late and is almost missed.</b> On the rotated clip (row 3), model A keeps pushing the "∞" into
+the bottom wall: its row stays at 48–49 from <i>h</i> = 2 to 4, and by <i>h</i> = 5 it has risen only 1.4 px. The truth
+rises 8 px after bouncing at <i>h</i> = 2. On the original clip the same model handles the same bounce off the left wall
+correctly, so row 4 bounces at <i>h</i> = 2–3 and rises 5 px. Its horizontal motion (the column) is right in both rows.
+Only the reflection is lost.</li>
+<li><b>The other digit stalls and fades.</b> In row 3 the "m" does not move at all for the first forecast step (row 12.1
+→ 11.7, against a true +4 px). It then moves down more slowly and ends 4.7 px behind the truth. Its peak brightness
+drops from 0.73 to 0.48, so it is turning into a dim blur. In row 4 the 3 moves steadily at about 3 px/frame, 2 px
+behind the truth.</li>
+</ol>
+<p>So for this clip the model's account of the motion changes from "an 8 bounces off a wall and a 3 moves away" to
+"a sideways 8 slides along the floor and a sideways 3 hesitates and dissolves". The motion itself (a bounce off a wall,
+constant downward velocity) is just as common in training as the original. What is new is only that the shapes doing
+the moving are lying on their side.</p>
+</div>
+
+<div class="qa"><b>Q2.8</b>
+<p><b>Yes, rotation is harder than mirroring for model A, and the effect is consistent across both seeds.</b>
+E<sub>R</sub> − E<sup>(5)</sup> = 0.0017 (+7.5%) against E<sub>M</sub> − E<sup>(5)</sup> = 0.0006 (+2.6%). C<sub>R</sub>
+(0.0028) is about 1.7× C<sub>M</sub> (0.0017), and the C<sub>R</sub> histogram in Figure 4 has a heavier right tail.</p>
+<p><b>The cause is appearance, not motion.</b> By Q2.1, neither transformation creates unfamiliar <i>motion</i>: every
+direction a mirrored or rotated trajectory contains is common in training, and speeds are unchanged. On 1,000 videos, the
+90° rotation moves the direction histogram only slightly more than the mirror does (TV 0.10 against 0.08). Both are
+small next to how well every direction is represented. By Q2.2, what the two transformations change is the digits'
+<i>appearance</i>, and rotation changes it much more. A mirrored digit is still upright: it keeps its height-to-width
+ratio and its mostly vertical strokes. Only its left–right orientation flips, and some digits (0, 1, 8) are nearly
+mirror-symmetric anyway. A rotated digit lies on its side. It is wider than it is tall, its long strokes become
+horizontal, and no rotated digit resembles any upright training digit. Model A's motion "rule" is implemented by
+convolution filters tuned to upright strokes, and the extra error and inconsistency grow with how far the appearance
+moves from the training digits. That points to a motion rule that is partly entangled with appearance. The cleaner test
+is model B (Section 4): if symmetry augmentation removes the gap between E<sub>M</sub> and E<sub>R</sub> without
+changing the motion statistics, appearance is confirmed.</p>
+</div>
+
+<h3>Faster motion</h3>
+<p class="tcap"><b>Table 4.</b> Model A and Copy-last at 1×, 2× and 3× (<i>t</i> = 1). E<sup>(2)</sup> uses only the first
+two horizons, so it is comparable across speeds. At 3× only two target frames exist (16 and 19), so E<sup>(5)</sup>
+is not defined there. For reference, Blank scores E<sup>(2)</sup> = 0.0426 at every speed.</p>
+{{T4}}
+
+<figure>
+<img src="../Question2/figures/fig5_speed_modelA.png" alt="Figure 5: model A at 1x, 2x and 3x">
+<figcaption><b>Figure 5.</b> Model A (seed 0) on test video FIG5_VIDEO at 1×, 2× and 3× (<i>t</i> = 1): the five input
+frames, the first two predicted frames and the first two true future frames. The digits do not overlap in any of the
+displayed true frames.</figcaption>
+</figure>
+
+Q29_BLOCK
+
+<div class="qa"><b>Q2.10</b>
+<p><b>No, Table 4 alone cannot separate the two explanations.</b> Model A was trained only at 1×, where almost all
+motion is below 5 px/frame (Figure 1b), and its reach is 8 px. At 2× and 3× the motion is therefore <i>both</i>
+unfamiliar and close to or beyond the reach. Both hypotheses predict exactly the observed result, a collapse at 2× and
+3×. The only hint is that model A already fails at 2×, where the typical displacement (6.6 px) is <i>inside</i> its
+reach. That suggests unfamiliarity is at least part of the story, but it cannot rule reach in or out at 3×.</p>
+<p><b>Experiment that separates them</b>: a 2×2 design that changes one factor at a time.</p>
+<ol>
+<li><b>Fix unfamiliarity, keep the reach</b>: retrain the <i>same</i> architecture with speed augmentation (model C).
+If C becomes good at 2× <i>and</i> 3×, the failure was purely unfamiliar motion. If C recovers at 2× (within reach) but
+stays poor at 3× (beyond reach), the remaining 3× failure is architectural.</li>
+<li><b>Then increase the reach, keep the data</b>: train a larger-reach network on exactly the same speed-augmented data
+(model D). If D fixes 3× where C could not, reach is confirmed as the cause.</li>
+</ol>
+<p>A cheaper diagnostic on the existing models is to bin the test videos by their measured per-frame displacement at
+2×/3× and plot error against displacement. An architectural limit predicts a sharp rise in error near the reach (about
+8 px), however much data is used. Unfamiliarity predicts errors that rise from the edge of the training range (about
+5 px) and fall back once such speeds are added to training.</p>
+</div>
