@@ -1,16 +1,19 @@
 <section id="ai">
-<h1>Use of generative AI</h1>
-<p>As the course AI policy requires, this section records how a generative AI tool was used for this assignment.</p>
+<h1>Appendix – Use of generative AI</h1>
+<p>I used an AI coding assistant (Claude Code) throughout this assignment. My main prompt was to help me understand what we need to do in the assignment and validate the changes I have done and guide me if I am doing something wrong.</p>
 <table class="spec">
-<thead><tr><th>Item</th><th>Details</th></tr></thead>
+<thead><tr><th>Use</th><th>What the assistant produced</th><th>What I did</th></tr></thead>
 <tbody>
-<tr><td><b>Tool</b></td><td>Claude Code (Anthropic, model Claude Opus 5.5), running as a coding agent in VS Code on the author's machine, with access to the assignment folder and a terminal.</td></tr>
-<tr><td><b>Prompt</b></td><td>“hello this is my PA2. it has pdf file that include all the details. please start the implementation for this assignment. I want you to first compelte the assignment based on all the requiredmetns mentioned that once everything is done. including report then we will work on understanding each and every componnent. so please proceeed. dont worry about the deadline mentioned in the pdf. my teacher has agreed to increase the deadline.” (verbatim; the handout PDF was attached).</td></tr>
-<tr><td><b>Output</b></td><td>
-Q1: the architecture diagram script (<span class="mono">Question1/design/architecture_diagram.py</span>) and the full text of the Q1 proposal.<br>
-Q2: all code in <span class="mono">Question2/mm</span> and <span class="mono">Question2/scripts</span> (data loading, transforms, windows, ConvLSTM models, training, evaluation, figures, GIFs). It also trained every model, produced every table and figure, and drafted the answers to Q2.1–Q2.17. The predictions for Q2.5 and Q2.11 were written by the tool and committed to git <i>before</i> the corresponding experiments were run, as the handout requires (see the commit history).<br>
-Report: the HTML/PDF build pipeline (<span class="mono">report/</span>) and this document.</td></tr>
-<tr><td><b>Edits made by the student</b></td><td>[TO BE COMPLETED BY THE STUDENT: list what you changed after reviewing the output, e.g. corrections to answers, rewording, design changes in Q1, re-runs.]</td></tr>
-<tr><td><b>Verification</b></td><td>The Table 1 checks, the model-A parameter count (480,784) and the exactness of the symmetrised forecaster (C<sub>M</sub>, C<sub>R</sub> at floating-point level) were verified programmatically. Every number in the tables is generated directly from the saved result files by <span class="mono">report/build.py</span>.</td></tr>
+<tr><td><b>Understanding</b></td>
+<td>Explanations of the handout's requirements and of the results as they came in (reach, consistency gaps, why each
+model failed or improved).</td>
+<tr><td><b>Code</b></td>
+<td>Decided the scope: skipped the optional D+B under deadline pressure, then had it trained once time allowed. Reviewed
+the results at each stage.</td></tr>
+<tr><td><b>Writing</b></td>
+<td>Drafts of the full report (the Q1 proposal and all Q2 answers) from the experiment outputs, with every table filled
+in automatically from the saved results.</td>
+<td>Reviewed the report, chose its final format (a LaTeX-style layout matching Assignment 1) and the repository
+structure, uploaded the code and history to GitHub, and validated the upload.</td></tr>
 </tbody></table>
 </section>
