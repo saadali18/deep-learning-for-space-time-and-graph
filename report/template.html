@@ -40,10 +40,12 @@ table.small td, table.small th { padding: 2.5pt 3pt; }
 .seeds { color: var(--muted); font-size: 0.88em; }
 tr.out td { background: #fbf6e6; }
 .caption, figcaption { font-size: 8.8pt; color: var(--ink2); margin: 3pt 0 10pt; text-align: justify; }
-.tcap { font-size: 8.8pt; color: var(--ink2); margin: 8pt 0 2pt; }
+.tcap { font-size: 8.8pt; color: var(--ink2); margin: 8pt 0 2pt; break-after: avoid; page-break-after: avoid; }
 figure { margin: 8pt 0; page-break-inside: avoid; }
+figure.multi { page-break-inside: auto; }
+figure.multi img { page-break-inside: avoid; margin-bottom: 4pt; }
 figure img { width: 100%; display: block; }
-figure.half img { width: 70%; margin: 0 auto; }
+figure.half img { width: 52%; margin: 0 auto; }
 figure.wide img { width: 100%; }
 .eq { margin: 4pt 0 6pt; overflow-x: auto; font-size: 9.5pt; }
 .qa { margin: 8pt 0 10pt; padding: 5pt 8pt; border-left: 3px solid var(--accent); background: #f8fafc;

@@ -42,7 +42,20 @@ exceed Copy-last.</p>
 <i>t</i> = 1, on the 1,000 test videos. Model A is mean (seed 0, seed 1).</p>
 {{T3}}
 
-FIG3_BLOCK
+<figure class="multi">
+<img src="../Question2/figures/fig3_modelA_M_v9257.png" alt="Figure 3a">
+<img src="../Question2/figures/fig3_modelA_M_v9256.png" alt="Figure 3b">
+<img src="../Question2/figures/fig3_modelA_R_v9733.png" alt="Figure 3c">
+<img src="../Question2/figures/fig3_modelA_R_v9031.png" alt="Figure 3d">
+<figcaption><b>Figure 3.</b> The two test videos with the largest per-video C<sub>M</sub> (a: 9257, b: 9256) and the two
+with the largest C<sub>R</sub> (c: 9733, d: 9031), for model A (seed 0). No video is in both top-two lists. Rows:
+(1) <i>X</i> | <i>f</i>(<i>X</i>); (2) <i>T</i>(<i>X</i>) | <i>T</i>(<i>Y</i>); (3) <i>T</i>(<i>X</i>) | <i>f</i>(<i>T</i>(<i>X</i>));
+(4) <i>T</i>(<i>X</i>) | <i>T</i>(<i>f</i>(<i>X</i>)). Columns 1–5 are the input frames and columns 6–10 the forecast
+horizons <i>h</i> = 1–5. The orange line separates input from forecast. Animated GIFs of the same four rows, stepping
+through the five inputs and then the five horizons:
+<span class="gifs">Question2/gifs/fig3_modelA_M_v9257.gif, Question2/gifs/fig3_modelA_M_v9256.gif,
+Question2/gifs/fig3_modelA_R_v9733.gif, Question2/gifs/fig3_modelA_R_v9031.gif</span>.</figcaption>
+</figure>
 
 <figure>
 <img src="../Question2/figures/fig4_consistency_hist_modelA.png" alt="Figure 4: histograms of per-video consistency gaps">
@@ -125,12 +138,43 @@ is not defined there. For reference, Blank scores E<sup>(2)</sup> = 0.0426 at ev
 
 <figure>
 <img src="../Question2/figures/fig5_speed_modelA.png" alt="Figure 5: model A at 1x, 2x and 3x">
-<figcaption><b>Figure 5.</b> Model A (seed 0) on test video FIG5_VIDEO at 1×, 2× and 3× (<i>t</i> = 1): the five input
+<figcaption><b>Figure 5.</b> Model A (seed 0) on test video 9026 (chosen automatically as the first test video whose two digits form two separate blobs in every displayed frame at all three speeds) at 1×, 2× and 3× (<i>t</i> = 1): the five input
 frames, the first two predicted frames and the first two true future frames. The digits do not overlap in any of the
 displayed true frames.</figcaption>
 </figure>
 
-Q29_BLOCK
+<div class="qa"><b>Q2.9</b>
+<p><b>Model A falls apart already at 2×, not at 3×.</b> E<sup>(2)</sup> rises from 0.0189 at 1× to 0.0443 at 2×
+(2.3×) and 0.0515 at 3×. At 2× it is no better than predicting an empty frame (Blank: 0.0426), and at 3× it is worse than
+Blank. Both seeds agree (0.0428 and 0.0458 at 2×). It still beats Copy-last at every speed, but only because Copy-last is
+a very weak bar.</p>
+<p><b>Agreement with the reach estimate: no.</b> The typical 2× displacement (6.6 px/frame) is <i>inside</i> the 8 px
+reach, so Q2.3 and my Q2.5 prediction expected 2× to degrade but still work. The estimate missed two things.
+(1) <b>Reach is only an upper bound on what the architecture <i>could</i> do.</b> Whether the trained weights actually
+move content that far depends on training. Model A only ever saw displacements up to about 5 px/frame, so its filters
+implement those, and nothing in training asked them to move a digit 6–10 px per step. (2) <b>One-way reach is not the
+limit on relating two positions.</b> To track a digit, the old position (held in the recurrent state) and the new
+evidence (the input frame) must <i>meet</i> in some cell. They can travel towards each other from both ends: the input
+2 cells to the output, and the layer-2 state 1 cell. So positions up to about 3 cells = 12 px apart can be compared in a
+single step, which already covers 3× (≈ 10 px). Section 4 confirms both points: speed augmentation alone (model C, same
+8 px reach) repairs most of the 2× <i>and</i> 3× failure.</p>
+<p><b>What the failure looks like</b> (Figure 5, video 9026; intensity centroids of each digit):</p>
+<ul>
+<li><b>Stalling.</b> At 2× the true digits move about 7 px per step. Model A moves them only about 2 px (the 3: true
+row 14.1 → 21.1 at <i>h</i> = 1, predicted 14.1 → 12.1; the 2: true column 16.2 → 20.2, predicted 16.2 → 15.6). At 3×
+the 3 should move 10 px down in one step and 21 px in two, but the prediction moves it 3 px and then 4.5 px. Stalling
+suggests the model is applying a <i>memorised typical step</i> from the 1× training data (a prior on how far digits
+move) instead of measuring the velocity in the input frames.</li>
+<li><b>Missed bounces.</b> At 2× the 3 hits the top wall and bounces down, but the prediction keeps nudging it
+upwards into the wall. A model that has not tracked the velocity cannot know when the wall will be reached.</li>
+<li><b>Blur.</b> The predicted blobs cover 1.5–2× the true digit area (for example 267 against 137 px at 3×), and their
+peak intensity drops to 0.7–0.8. That is the squared-error-optimal hedge when the model is unsure where the digit
+is.</li>
+<li><b>A faint duplicate.</b> At 2×, <i>h</i> = 2, a ghost of the 2 appears about 10 px away from the stalled copy.
+The model spreads probability mass between where its prior says the digit should be and where the input evidence points.
+No digit disappears entirely in this example, but at 3× the shapes dissolve into blobs that are no longer recognisable.</li>
+</ul>
+</div>
 
 <div class="qa"><b>Q2.10</b>
 <p><b>No, Table 4 alone cannot separate the two explanations.</b> Model A was trained only at 1×, where almost all

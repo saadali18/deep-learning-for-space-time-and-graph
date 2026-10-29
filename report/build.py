@@ -32,7 +32,7 @@ def fmt(v, sci_below=1e-3):
     if abs(v) < sci_below:
         m, e = f"{v:.2e}".split("e")
         return f"{m}×10<sup>{int(e)}</sup>"
-    return f"{v:.3g}" if abs(v) < 1000 else f"{v:,.0f}"
+    return f"{v:#.3g}" if abs(v) < 1000 else f"{v:,.0f}"
 
 
 def ms(rows, base, key, fmt_fn=fmt):
@@ -49,8 +49,8 @@ def html_table(header, body, cls="res"):
     return f"<table class='{cls}'><thead><tr>{h}</tr></thead><tbody>{b}</tbody></table>"
 
 
-def secs(v):
-    return f"{v:.3g} s"
+def secs(v):  # three significant figures
+    return f"{v:#.3g} s"
 
 
 def table1():
@@ -84,31 +84,39 @@ def table4():
                        "E<sup>(5)</sup> 2×"], body)
 
 
-T56_HEAD = ["Model", "E<sup>(5)</sup> 1×", "C<sub>M</sub>", "E<sub>M</sub>", "C<sub>R</sub>", "E<sub>R</sub>",
-            "E<sup>(2)</sup> 1×", "E<sup>(2)</sup> 2×", "E<sup>(2)</sup> 3×", "Params", "Train s/epoch", "Inference (1,000 videos)"]
+T56_A = ["Model", "E<sup>(5)</sup> 1×", "C<sub>M</sub>", "E<sub>M</sub>", "C<sub>R</sub>", "E<sub>R</sub>"]
+T56_B = ["Model", "E<sup>(2)</sup> 1×", "E<sup>(2)</sup> 2×", "E<sup>(2)</sup> 3×", "Params", "Train s/epoch",
+         "Inference (1,000 videos)"]
 
 
-def t56_rows(t, models):
-    body = []
-    for lab, b in models:
-        body.append([lab] + [ms(t, b, k) for k in ("E5_1x", "CM", "EM", "CR", "ER", "E2_1x", "E2_2x", "E2_3x")]
-                    + [f"{t[b + '_s0']['params']:,}", ms(t, b, "train_s_per_epoch", secs), ms(t, b, "inference_s", secs)])
-    return body
+def ms2(rows, base, key, fmt_fn=fmt):
+    """Mean on the first line, (seed 0, seed 1) on the second."""
+    a, b = rows[f"{base}_s0"][key], rows[f"{base}_s1"][key]
+    return f"{fmt_fn((a + b) / 2)}<br><span class='seeds'>({fmt_fn(a)}, {fmt_fn(b)})</span>"
+
+
+def t56(t, models):
+    part_a = [[lab] + [ms2(t, b, k) for k in ("E5_1x", "CM", "EM", "CR", "ER")] for lab, b in models]
+    part_b = [[lab] + [ms2(t, b, k) for k in ("E2_1x", "E2_2x", "E2_3x")]
+              + [f"{t[b + '_s0']['params']:,}", ms2(t, b, "train_s_per_epoch", secs), ms2(t, b, "inference_s", secs)]
+              for lab, b in models]
+    return ("<p class='tcap'>(a) Accuracy and consistency at 1×</p>" + html_table(T56_A, part_a, "res") +
+            "<p class='tcap'>(b) Speed generalisation and cost</p>" + html_table(T56_B, part_b, "res"))
 
 
 def table5():
     t = load("table5.json")
     models = [("A", "A"), ("B", "B"), ("C", "C"), ("D", "D")] + ([("D+B", "DB")] if "DB_s0" in t else [])
-    return html_table(T56_HEAD, t56_rows(t, models), "res small")
+    return t56(t, models)
 
 
 def table6():
     t = load("table6.json")
     rows = t["rows"]
-    models = [("Symmetrised B", "sym:B"), ("Symmetrised D", "sym:D")]
+    models = [("Symmetrised B", "sym:B"), ("Symmetrised D (final)", "sym:D")]
     if t["final"] not in ("sym:B", "sym:D"):
-        models.append((f"Symmetrised D+B (final)", t["final"]))
-    return html_table(T56_HEAD, t56_rows(rows, models), "res small")
+        models.append(("Symmetrised D+B (final)", t["final"]))
+    return t56(rows, models)
 
 
 def table_dsel():
