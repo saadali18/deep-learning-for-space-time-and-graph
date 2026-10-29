@@ -36,8 +36,11 @@ def _img(ax, frame, label=None, title=None):
 def grid(rows, row_labels, col_titles=None, size=0.75, sep_after=None, suptitle=None):
     """rows: list of lists of (64, 64) frames (None = empty cell)."""
     nr, nc = len(rows), max(len(r) for r in rows)
-    fig, axes = plt.subplots(nr, nc, figsize=(nc * size + 1.4, nr * size + (0.5 if suptitle else 0.25)),
-                             squeeze=False, gridspec_kw=dict(wspace=0.04, hspace=0.06))
+    lab_w, top_h = 1.5, (0.55 if suptitle else 0.3)
+    W, H = nc * size * 1.04 + lab_w, nr * size * 1.06 + top_h
+    fig, axes = plt.subplots(nr, nc, figsize=(W, H), squeeze=False,
+                             gridspec_kw=dict(wspace=0.04, hspace=0.06, left=lab_w / W, right=0.995,
+                                              bottom=0.01, top=1 - top_h / H))
     for i, r in enumerate(rows):
         for j in range(nc):
             ax = axes[i, j]
@@ -48,7 +51,8 @@ def grid(rows, row_labels, col_titles=None, size=0.75, sep_after=None, suptitle=
                 ax.axis("off")
     if sep_after is not None:  # vertical line between input and future columns
         x = (axes[0, sep_after - 1].get_position().x1 + axes[0, sep_after].get_position().x0) / 2
-        fig.add_artist(plt.Line2D([x, x], [0.02, 0.98], color="#eb6834", lw=1.2, transform=fig.transFigure))
+        y0, y1 = axes[-1, 0].get_position().y0, axes[0, 0].get_position().y1
+        fig.add_artist(plt.Line2D([x, x], [y0, y1], color="#eb6834", lw=1.2, transform=fig.transFigure))
     if suptitle:
         fig.suptitle(suptitle, fontsize=9, y=1.0)
     return fig

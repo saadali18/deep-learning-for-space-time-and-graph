@@ -115,7 +115,7 @@ def fig2(model, videos, idxs, name):
 def pick_fig2_videos(videos):
     prof = np.stack([overlap_profile(videos[i]) for i in range(videos.shape[0])])
     clean = [i for i in range(len(prof)) if prof[i, :10].max() < 0.02][:2]
-    overl = [i for i in range(len(prof)) if prof[i, 5:10].max() > 0.3][0]
+    overl = [i for i in range(len(prof)) if prof[i, 5:10].max() > 0.2][0]  # strong overlap in the target frames
     return clean + [overl]
 
 

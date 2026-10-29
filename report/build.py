@@ -136,7 +136,7 @@ def render(text):
 
 def main():
     parts = []
-    for name in ("front.html", "q1.html", "q2.html", "ai_usage.html"):
+    for name in ("front.html", "q1.html", "q2_setup.html", "q2_baseline.html", "q2_testing.html", "q2_data.html", "q2_final.html", "ai_usage.html"):
         p = os.path.join(HERE, name)
         if os.path.exists(p):
             with open(p) as fh:
