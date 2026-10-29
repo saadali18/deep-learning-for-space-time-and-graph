@@ -55,7 +55,8 @@ def secs(v):  # three significant figures
 
 def table1():
     rows = load("table1.json")
-    return html_table(["Check", "Expected", "Yours"], [[r[0], r[1], r[2]] for r in rows])
+    sup = lambda t: re.sub(r"\^(−?\d)", r"<sup>\1</sup>", t)
+    return html_table(["Check", "Expected", "Yours"], [[sup(r[0]), r[1], r[2]] for r in rows])
 
 
 def table2():
@@ -155,7 +156,10 @@ def main():
                 parts.append(render(fh.read()))
     with open(os.path.join(HERE, "template.html")) as fh:
         tpl = fh.read()
-    out = tpl.replace("<!--BODY-->", "\n".join(parts))
+    body = "\n".join(parts)
+    # LaTeX-style caption labels: "<b>Figure 3.</b>" -> "Figure 3:", "<b>Table 5.</b>" -> "Table 5:"
+    body = re.sub(r"<b>((?:Figure|Table) [^<]{1,12}?)\.</b>", r"\1:", body)
+    out = tpl.replace("<!--BODY-->", body)
     html_path = os.path.join(HERE, "report.html")
     with open(html_path, "w") as fh:
         fh.write(out)
