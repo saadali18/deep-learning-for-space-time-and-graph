@@ -1,0 +1,274 @@
+<section id="q1">
+<h1>Question 1 – River Forecasting Proposal</h1>
+
+<p class="lead">We propose a <b>graph-structured space–time forecaster</b>: a small neural network whose
+spatial connections follow the river (reservoir → S1 → S2 → S3 → S4, with tributaries joining at the
+right places). Each source is first aligned to one 10-minute grid, then a temporal block reads each
+location's recent history, and spatial blocks move information downstream with travel times that are
+learned and can change with the state of the river. Every ten minutes the system outputs, for each of
+S1–S4, the median water level one hour ahead and an 80% interval. The physics we are confident about
+(which way water flows, where tributaries join, that travel time grows with distance and shrinks at high
+flow) is built into the structure. What we are not confident about (exact lags, rainfall–runoff
+response, the unmonitored tributary) is learned from the historical record.</p>
+
+<h2>1. Architecture diagram</h2>
+<figure class="wide">
+<img src="../Question1/design/q1_architecture.png" alt="Architecture diagram of the river forecasting system">
+<figcaption><b>Figure Q1.</b> Data flow from the four data sources (column 1) through alignment to the 10-minute
+grid (2), projection of every source to node tokens of width <i>d</i> (3), a temporal block and four spatial
+message-passing rounds on the river graph (4), to quantile forecasts for S1–S4 (5). The tensor shapes on the arrows
+include the batch axis <i>B</i> (independent issuance times). Bottom right: the 7-node river graph used by the spatial
+block. U is a latent node for the unmonitored tributary. It has no level gauge and receives only rainfall.</figcaption>
+</figure>
+
+<h2>2. Assumptions</h2>
+<p><b>Supplied facts</b> (taken as given, not assumed): F1 levels at S1–S4 and T1 every 10 min (historical);
+F2 rainfall at R1 and R2 with timestamps and gauge locations; F3 recorded reservoir releases, plus future release
+schedules with their announcement and effective times; F4 station locations, connectivity and along-river distances;
+F5 a monitored tributary (T1) joins between S1 and S2, an unmonitored one between S2 and S3; F6 precise travel times
+and the unmonitored inflow are not supplied, and travel times change with conditions; F7 future rainfall and future
+levels are unavailable at issuance.</p>
+
+<table class="assume">
+<thead><tr><th>#</th><th>Assumption</th><th>Why it is reasonable</th><th>Effect on the design</th></tr></thead>
+<tbody>
+<tr><td>A1</td><td>At least 3–5 years of concurrent 10-min records, including several high-flow events.</td>
+<td>Authorities that run gauges usually archive several years. Fewer than a handful of floods would make any learned model unreliable at the extremes.</td>
+<td>Allows a model of roughly 10<sup>5</sup> parameters, a chronological train/validation/test split, and flood-weighted training. With a shorter record we would shrink the model and lean on the persistence-plus-routing fallback.</td></tr>
+<tr><td>A2</td><td>All timestamps share one clock (UTC); level readings are nominally on 10-min marks with at most ±5 min jitter.</td>
+<td>Standard telemetry practice.</td>
+<td>Readings are snapped to the nearest grid point. A reading outside ±5 min is treated as missing at that point rather than shifted further.</td></tr>
+<tr><td>A3</td><td>Reporting delays are usually under 10 min, but any gauge can occasionally be late by up to a few hours. Gauges report independently.</td>
+<td>Typical of radio or cellular telemetry.</td>
+<td>Each input carries a mask and an "age" feature. Training randomly delays recent inputs (Section 5).</td></tr>
+<tr><td>A4</td><td>Missing data are mostly short gaps (a few % of points) plus rare multi-hour outages. Bad values can be found by range, spike and flat-line checks.</td>
+<td>Common failure modes of field sensors.</td>
+<td>A quality-control step sets mask = 0 for flagged values. Masking augmentation teaches the model to fall back on neighbouring gauges.</td></tr>
+<tr><td>A5</td><td>Level sensors have about 1 cm noise and a fixed datum. Any datum or rating change is documented.</td>
+<td>Required for any level-based forecast to be meaningful over years.</td>
+<td>Levels are normalised per station with fixed statistics. A documented datum change is corrected before training.</td></tr>
+<tr><td>A6</td><td>Rain gauges report depth (tipping bucket or interval totals). R1 is representative of the upper catchment (local inflow to S1 and the T1 basin) and R2 of the unmonitored tributary and the area draining to S3.</td>
+<td>Inferred from the gauge locations in the project setting.</td>
+<td>Rain is summed into 10-min bins and mapped to nodes by a matrix <i>C</i> (7×2). <i>C</i> is initialised from this sub-catchment guess and then learned.</td></tr>
+<tr><td>A7</td><td>Releases are recorded as discharge (m³/s). Schedules are usually honoured, but actual releases may differ in timing or amount (gate operations, emergency spills).</td>
+<td>Operational reality at dams.</td>
+<td>The model is trained on the schedule <i>as known at issuance</i> and also sees recent schedule-versus-record deviation (Section 5 iv).</td></tr>
+<tr><td>A8</td><td><b>Dynamics:</b> influence is downstream-dominant. Over one hour, backwater effects from downstream are small compared with upstream and local inputs.</td>
+<td>The reach is a steep valley river (as illustrated). Flow is gravity-driven, so disturbances propagate mainly downstream.</td>
+<td>Graph edges point downstream only. A station's own history still captures any slow local backwater effect.</td></tr>
+<tr><td>A9</td><td><b>Dynamics:</b> travel time between neighbouring nodes is positive and bounded. It lies roughly between <i>d</i>/<i>v</i><sub>max</sub> and <i>d</i>/<i>v</i><sub>min</sub> with wave celerity <i>v</i> ∈ [0.3, 3] m/s, and it <i>decreases</i> as flow rises (kinematic-wave behaviour).</td>
+<td>Standard open-channel hydraulics. Celerity grows with depth.</td>
+<td>Each edge reads only a bounded window of upstream lags, <i>L<sub>ji</sub></i> = ⌈<i>d<sub>ji</sub></i>/(<i>v</i><sub>min</sub>Δ)⌉ steps (capped at <i>H</i>). The lag weights depend on the current state, so the model can shorten the lag at high flow.</td></tr>
+<tr><td>A10</td><td><b>Dynamics:</b> over a one-hour horizon, levels are driven mainly by water that is already in the system: upstream flow, the release schedule, and rain that has <i>already</i> fallen. Rain falling after <i>t</i><sub>0</sub> barely affects main-river levels within the hour.</td>
+<td>Rainfall-to-runoff lags for catchments of this size are typically longer than one hour.</td>
+<td>No future-rain input is used. Rain falling now on small local areas is a residual risk, handled by wider intervals (Section 6).</td></tr>
+<tr><td>A11</td><td>The unmonitored tributary's inflow is correlated with recent R2 (and R1) rainfall. Its effect shows up first at S3 and then at S4. There are no other significant ungauged inflows or abstractions.</td>
+<td>It drains the catchment where R2 sits.</td>
+<td>A latent node U, fed only by rainfall, connects to S3. S3's own history captures how much the tributary is currently contributing.</td></tr>
+<tr><td>A12</td><td>Channel geometry, gauge ratings and reservoir operating policy are roughly stable over the record. Seasonal effects such as snowmelt in the mountainous headwaters are slowly varying.</td>
+<td>Stability is needed for any data-driven model to generalise. The setting is alpine.</td>
+<td>Inputs include a season code. The model is retrained periodically (e.g. quarterly) and monitored for drift.</td></tr>
+<tr><td>A13</td><td>Data arrive in an operational database within minutes. A standard CPU server is available.</td>
+<td>Normal for a monitoring authority.</td>
+<td>The model is a fully specified forward pass with no online optimisation (feasibility in Section 5).</td></tr>
+<tr><td>A14</td><td>Each station has a flood-warning threshold (or one will be supplied).</td>
+<td>Flood preparedness is the stated purpose.</td>
+<td>Used to up-weight high-water samples in the loss and for event-based evaluation.</td></tr>
+</tbody></table>
+
+<h2>3. Forecasting task and data specification</h2>
+<ul>
+<li><b>Issuance time</b> <i>t</i><sub>0</sub>: every 10-min mark (hh:00, hh:10, …). The forecast uses every value
+<i>timestamped</i> ≤ <i>t</i><sub>0</sub> that has <i>arrived</i> by <i>t</i><sub>0</sub> + 2 min (processing allowance).
+For announced releases, only announcements made at <i>a</i> ≤ <i>t</i><sub>0</sub> are used.</li>
+<li><b>Grid</b>: Δ = 10 min. <b>History window</b>: <i>H</i> = 72 steps, i.e. the 12 h from
+<i>t</i><sub>0</sub> − 710 min to <i>t</i><sub>0</sub> (inclusive). Twelve hours is comfortably longer than any plausible
+reservoir-to-S4 travel time plus the rainfall–runoff lag (A9, A10), so every cause of the next hour's level falls inside
+the window. The temporal block's receptive field (127 steps) covers the whole window.</li>
+<li><b>Horizon</b>: one target time <i>t</i><sub>0</sub> + 60 min (6 steps ahead), predicted <i>directly</i> rather than by
+feeding forecasts back, so errors do not compound. <b>Outputs</b>: for each station <i>i</i> ∈ {S1, S2, S3, S4} the
+quantiles <i>q</i> ∈ {0.1, 0.5, 0.9} of <i>y<sub>i</sub></i>(<i>t</i><sub>0</sub> + 60 min). The median is the point
+forecast, and [<i>q</i><sub>0.1</sub>, <i>q</i><sub>0.9</sub>] is an 80% interval.</li>
+</ul>
+
+<table class="spec">
+<thead><tr><th>Tensor</th><th>Dimensions</th><th>Axis meanings</th><th>Time coverage / timestamps</th></tr></thead>
+<tbody>
+<tr><td>Level inputs <i>X</i><sub>lev</sub></td><td><i>B</i>×5×72×4</td><td>batch (issuance times); gauge (S1, S2, S3, S4, T1); grid step; feature [normalised level, mask, age (min since the reading), 10-min change]</td><td>τ = <i>t</i><sub>0</sub>−71Δ, …, <i>t</i><sub>0</sub>; readings snapped to marks within ±5 min</td></tr>
+<tr><td>Rain inputs <i>X</i><sub>rain</sub></td><td><i>B</i>×2×72×3</td><td>batch; gauge (R1, R2); grid step; [depth in bin, mask, age]</td><td>bin τ covers (τ−Δ, τ]; from native timestamps ≤ <i>t</i><sub>0</sub></td></tr>
+<tr><td>Release history <i>X</i><sub>rel</sub></td><td><i>B</i>×72×4</td><td>batch; grid step; [release in effect at τ, is-recorded flag (vs. scheduled), recorded − scheduled deviation, mask]</td><td>τ = <i>t</i><sub>0</sub>−71Δ, …, <i>t</i><sub>0</sub>; step function of effective times</td></tr>
+<tr><td>Announced future release <i>X</i><sub>fut</sub></td><td><i>B</i>×6×3</td><td>batch; future step; [scheduled release, has-schedule flag, minutes since announcement]</td><td><i>t</i><sub>0</sub>+Δ, …, <i>t</i><sub>0</sub>+6Δ; only announcements with <i>a</i> ≤ <i>t</i><sub>0</sub></td></tr>
+<tr><td>Calendar code <i>p</i></td><td><i>B</i>×72×4</td><td>batch; grid step; [sin, cos] of time of day and of day of year</td><td>same grid as the history</td></tr>
+<tr><td>Static graph</td><td><i>A</i>: 7×7, <i>d</i>: 7×7, <i>C</i>: 7×2</td><td>node × node adjacency (downstream edges) and distances; node × rain gauge mapping</td><td>static</td></tr>
+<tr><td>Latest valid level <i>y</i><sup>last</sup></td><td><i>B</i>×4</td><td>batch; station S1–S4</td><td>most recent unmasked reading ≤ <i>t</i><sub>0</sub> (its age is in <i>X</i><sub>lev</sub>)</td></tr>
+<tr class="out"><td><b>Output</b> <i>Ŷ</i></td><td><i>B</i>×4×3</td><td>batch; station S1–S4; quantile (0.1, 0.5, 0.9)</td><td>valid at <i>t</i><sub>0</sub> + 60 min</td></tr>
+<tr class="out"><td>Target <i>Y</i>, mask <i>M</i></td><td><i>B</i>×4, <i>B</i>×4</td><td>batch; station</td><td>observed level at <i>t</i><sub>0</sub> + 60 min (training/evaluation only)</td></tr>
+</tbody></table>
+
+<p><b>Alignment across locations and sampling times.</b> All sources are placed on one common grid of <i>H</i> = 72 time
+steps ending at <i>t</i><sub>0</sub>, so step τ means the same physical time at every node. Levels are point samples and
+are <i>snapped</i> to the grid. Rainfall arrives at irregular times and is <i>accumulated</i> into each bin (τ−Δ, τ], which
+conserves rain depth. Releases are piecewise constant in time, so the release <i>in effect</i> at τ is read off a step
+function. Space is aligned through the graph rather than by interpolation. Each source is attached to a node (gauges to
+their own node, releases to Res, rain to nodes through <i>C</i>). Different feature sizes are made comparable by a
+per-source linear projection to width <i>d</i>. A source that has no observation at a node (for example U has no level)
+simply contributes nothing there.</p>
+<p><b>Information available at issuance.</b> Available: past levels at S1–S4 and T1, past rain at R1 and R2, past
+recorded releases, schedules announced by <i>t</i><sub>0</sub> (including effective times after <i>t</i><sub>0</sub>),
+the static river description, and the calendar. Not available: any future level or rain, inflow from the unmonitored
+tributary, actual future releases, and readings that are still in transit. Training samples are rebuilt <i>as of</i>
+each historical <i>t</i><sub>0</sub> (using announcement times and, where logged, arrival times), so the model never
+learns from information it would not have in operation.</p>
+
+<h2>4. Model computations and design justification</h2>
+<p><b>Notation.</b> Nodes 𝒱 = {Res, S1, T1, S2, U, S3, S4}. Downstream edges ℰ = {Res→S1, S1→S2, T1→S2, S2→S3,
+U→S3, S3→S4}. 𝒩(<i>i</i>) is the set of upstream neighbours of <i>i</i>. <i>x</i><sub><i>v</i>,τ</sub> is the aligned
+feature vector of node <i>v</i> at step τ, <i>d</i> = 32, σ is the logistic function, and ‖ denotes concatenation.</p>
+
+<p><b>(a) Projection to node tokens</b> (diagram column 3):</p>
+<div class="eq">\[ z^{0}_{v,\tau} = W_{\mathrm{src}(v)}\,x_{v,\tau} \;+\; \sum_{r\in\{R1,R2\}} C_{vr}\,W_{\mathrm{rain}}\,x^{\mathrm{rain}}_{r,\tau} \;+\; e_v \;+\; W_p\,p_\tau ,\qquad z^0\in\mathbb{R}^{B\times 7\times 72\times d}. \]</div>
+<p><i>W</i><sub>src(<i>v</i>)</sub> is <i>W</i><sub>lev</sub> for S1–S4 and T1, <i>W</i><sub>rel</sub> for Res, and absent for U.
+<i>e<sub>v</sub></i> is a learned node embedding.</p>
+
+<p><b>(b) Temporal block (T)</b>: a causal dilated temporal convolution network with gated residual units. Weights are
+shared across nodes (the node identity enters through <i>e<sub>v</sub></i>). For layers <i>l</i> = 0, …, 5 with dilation
+δ<sub><i>l</i></sub> = 2<sup><i>l</i></sup>:</p>
+<div class="eq">\[ u^{l}_{v,\tau}=\sum_{k=0}^{2} W^{l}_{k}\, z^{l}_{v,\tau-k\delta_l},\qquad z^{l+1}_{v,\tau}=z^{l}_{v,\tau}+W^{l}_{o}\big[\tanh(u^{l,f}_{v,\tau})\odot\sigma(u^{l,g}_{v,\tau})\big], \]</div>
+<p>which gives <i>h</i><sub><i>v</i>,τ</sub> = <i>z</i><sup>6</sup><sub><i>v</i>,τ</sub>. The block is causal (it never reads
+τ' &gt; τ) and has a receptive field of 1 + 2·63 = 127 steps ≥ <i>H</i>. It captures each node's own dynamics: recession
+after a peak, rain accumulation, and the release pattern.</p>
+
+<p><b>(c) Spatial block (S): lag-attention message passing</b>, repeated for rounds <i>r</i> = 0, …, 3, with
+<i>h</i><sup>(0)</sup> = <i>h</i>. Along each edge <i>j</i>→<i>i</i>, node <i>i</i> at time τ attends over upstream
+node <i>j</i>'s states at lags ℓ = 0, …, <i>L<sub>ji</sub></i>:</p>
+<div class="eq">\[ \alpha^{(r)}_{ji,\tau}(\ell)=\operatorname*{softmax}_{\ell\le L_{ji}}\!\Big(\tfrac{1}{\sqrt d}\,\big(W_Q h^{(r)}_{i,\tau}\big)^{\!\top} W_K\big[h^{(r)}_{j,\tau-\ell}\,\|\,\phi(\ell)\big] \;-\;\tfrac{(\ell\Delta-\bar t_{ji})^2}{2s_{ji}^2}\Big), \qquad m^{(r)}_{ji,\tau}=\sum_{\ell}\alpha^{(r)}_{ji,\tau}(\ell)\,W_V h^{(r)}_{j,\tau-\ell}, \]</div>
+<div class="eq">\[ h^{(r+1)}_{i,\tau}=h^{(r)}_{i,\tau}+\mathrm{MLP}\Big(\big[h^{(r)}_{i,\tau}\,\big\|\,\textstyle\sum_{j\in\mathcal N(i)} m^{(r)}_{ji,\tau}\big]\Big). \]</div>
+<p>Here φ(ℓ) is a lag encoding. The second term is a <b>travel-time prior</b> centred on <i>t̄<sub>ji</sub></i> =
+<i>d<sub>ji</sub></i>/<i>v̄</i>, with a learnable typical celerity <i>v̄</i> and width <i>s<sub>ji</sub></i>, and
+<i>L<sub>ji</sub></i> is the hard cap from A9. Because the query includes node <i>i</i>'s current state (its level), the
+attention can move its weight to shorter lags when the river is high. This is how varying travel times are handled.
+Before round 0, the future-release embedding <i>f</i> = MLP(vec <i>X</i><sub>fut</sub>) is added to <i>h</i><sub>Res,<i>t</i><sub>0</sub></sub>.</p>
+<p><b>Reach.</b> Each round moves information one hop downstream and up to <i>L<sub>ji</sub></i> steps back in time. Four
+rounds cover the longest path Res→S1→S2→S3→S4. So every gauge, rain gauge and release can influence every downstream
+forecast, and the temporal block lets each node see all 72 steps.</p>
+
+<p><b>(d) Forecast mapping.</b> For station <i>i</i> ∈ {S1, …, S4}:</p>
+<div class="eq">\[ [\mu_i, g_i^-, g_i^+] = \mathrm{MLP}_{\mathrm{out}}\big([h^{(4)}_{i,t_0}\,\|\,h_{i,t_0}\,\|\,e_i]\big),\qquad \hat y_{i,0.5}=y^{\mathrm{last}}_i+\sigma_i\mu_i, \]</div>
+<div class="eq">\[ \hat y_{i,0.1}=\hat y_{i,0.5}-\sigma_i\,\mathrm{softplus}(g_i^-),\qquad \hat y_{i,0.9}=\hat y_{i,0.5}+\sigma_i\,\mathrm{softplus}(g_i^+). \]</div>
+<p>The model predicts a <i>change</i> from the latest valid level (σ<sub><i>i</i></sub> is the station's level scale). With
+all weights at zero this reduces to persistence, which is already a strong baseline at one hour. The softplus gaps
+guarantee non-crossing quantiles.</p>
+
+<p><b>(e) Training objective.</b> We minimise a pinball (quantile) loss, masked where the target is missing and weighted
+towards flood conditions:</p>
+<div class="eq">\[ \mathcal L=\frac{\sum_{b,i,q} w_{b,i}\,M_{b,i}\,\rho_q\big(y_{b,i}-\hat y_{b,i,q}\big)}{\sum_{b,i} M_{b,i}}+\lambda\|\theta\|^2,\quad \rho_q(u)=\max(qu,(q-1)u),\quad w_{b,i}=1+\kappa\,\mathbb 1[y_{b,i}>\text{flood level}_i]. \]</div>
+<p>Training uses Adam, with early stopping on the validation period. The split is chronological (for example the first
+70% of years for training, the next 15% for validation, the last 15% for testing), with a 13-hour gap at each boundary
+so windows do not overlap. After training, the 80% interval is widened by split-conformal calibration per station on the
+validation period, so its empirical coverage is 80%. We report MAE and pinball skill relative to persistence, interval
+coverage, and hit and false-alarm rates for threshold exceedance.</p>
+
+<p><b>Why this design.</b> (1) <i>Graph instead of a flat vector</i>: the river topology is known (F4). Hard-wiring it
+removes impossible dependencies (S4 cannot drive S1) and lets the one temporal block and one spatial block be shared
+across nodes, which matters with only a few floods in the record (A1). (2) <i>T then S</i>: a node's own history is
+summarised first, so each spatial message carries a rich, time-aware description of the upstream state. (3)
+<i>Lag-attention instead of fixed lags</i>: travel times are unknown and state-dependent (F6, A9). A fixed-lag graph
+convolution would bake in a single lag, whereas attention restricted to physically plausible lags learns them and can
+shift them with the flow, at negligible cost because each node has at most two upstream neighbours. Attention over
+<i>all</i> space–time tokens is not needed: the graph is tiny and the plausible paths are known. (4) <i>Residual on
+persistence plus quantiles</i>: these make the model degrade gracefully and give the committee the uncertainty they need
+for flood decisions.</p>
+
+<p><b>How each driver reaches each forecast.</b></p>
+<table class="spec">
+<thead><tr><th>Forecast</th><th>Upstream conditions</th><th>Tributaries</th><th>Rainfall</th><th>Reservoir releases</th></tr></thead>
+<tbody>
+<tr><td>S1</td><td>own history (T block)</td><td>—</td><td>R1 via <i>C</i> (local runoff)</td><td>1 hop: past releases on the Res node, plus the announced future release <i>f</i>. The lag attention on Res→S1 picks the release that arrives in the next hour.</td></tr>
+<tr><td>S2</td><td>S1 history at learned lag (1 hop)</td><td>T1 history (1 hop)</td><td>R1 via T1 and S1</td><td>2 hops via S1</td></tr>
+<tr><td>S3</td><td>S2 at learned lag; S1 and T1 at 2 hops</td><td>latent U (1 hop). S3's own recent rise shows U's current inflow.</td><td>R2 via U and <i>C</i>; R1 via upstream nodes</td><td>3 hops</td></tr>
+<tr><td>S4</td><td>S3 at learned lag; further upstream nodes at 2–4 hops</td><td>U and T1 through S3</td><td>R2 via U→S3→S4</td><td>4 hops; usually only relevant for long-lived release changes</td></tr>
+</tbody></table>
+
+<p><b>Physical assumptions versus learned mappings.</b></p>
+<table class="spec">
+<thead><tr><th>Imposed by design (physical)</th><th>Learned from data</th></tr></thead>
+<tbody>
+<tr><td>Flow direction and confluence locations (edges of <i>A</i>, A8)</td><td>How strongly each upstream node and rain gauge affects each station (attention values, MLPs)</td></tr>
+<tr><td>Causality in time: no future level or rain inputs; the T block is causal</td><td>Travel times: lag weights α inside the plausible window, and their dependence on flow state</td></tr>
+<tr><td>Travel time is positive, bounded, and grows with distance (<i>L<sub>ji</sub></i> cap and the <i>d<sub>ji</sub></i>/<i>v̄</i> prior, A9)</td><td>Rainfall–runoff response, including the U node's latent inflow, and the rain-to-node mapping <i>C</i> (initialised from A6)</td></tr>
+<tr><td>Level continuity: the forecast is a change from the last level</td><td>Nonlinear stage response (rating-curve-like effects), seasonality, reliability of release schedules</td></tr>
+<tr><td>The release schedule is an exogenous, known future input</td><td>Size and shape of the forecast uncertainty (quantile gaps)</td></tr>
+</tbody></table>
+<p>We deliberately do <i>not</i> run a separate hydraulic simulator. Without cross-sections, rating curves or travel-time
+studies (requested in Section 6) it would need its own calibration and would add more unverified assumptions than it
+removes. The physics enters through structure and priors instead.</p>
+
+<h2>5. Operation and exceptional conditions</h2>
+<p><b>(i) Missing observations.</b> Quality control (range, spike, flat-line and rate-of-change tests) marks bad values
+as missing. A missing reading is replaced by the last valid value, with mask = 0 and its age, so the model knows it is
+stale. During training we randomly mask about 5% of points and drop whole gauges for 1–6 h, which teaches the spatial
+block to rely on neighbours: for example, inferring S2 from S1 and T1 when S2 is offline. If a target station's own
+level is missing, <i>y</i><sup>last</sup> is its last valid value. The model still forecasts it from upstream
+information, and the conformal interval is calibrated separately for "stale" cases, so it widens automatically. If two
+or more main-river gauges are out for over 3 h, the system switches to a fallback (persistence plus a lagged regression
+on the available upstream gauge) and flags the forecast as degraded.</p>
+<p><b>(ii) Delayed observations.</b> Forecasts are never held back waiting for data. At <i>t</i><sub>0</sub> + 2 min the
+model runs on whatever has arrived. Values not yet received are treated as missing with their true age, which is
+exactly how training was set up: delays are sampled from the empirical delay distribution, or from A3 if delay logs are
+not kept. Late data are included at the next issuance 10 minutes later. If late data change a forecast by more than a
+set tolerance (for example 5 cm), the current forecast is re-issued immediately with a "revised" flag.</p>
+<p><b>(iii) Announced future releases.</b> Schedules enter only through an <i>as-of</i> join. For every effective time
+<i>e</i> we use the most recent announcement with <i>a</i> ≤ <i>t</i><sub>0</sub>, so later revisions replace earlier
+ones and nothing announced after <i>t</i><sub>0</sub> leaks in. The release in effect during (<i>t</i><sub>0</sub>,
+<i>t</i><sub>0</sub>+60 min] forms <i>X</i><sub>fut</sub>, which reaches S1 (and onwards) through the Res node and the
+lag attention. If a scheduled change takes effect after <i>t</i><sub>0</sub> but its travel time to S1 is longer than an
+hour, the attention simply puts no weight on it. The same as-of rule is used to rebuild historical training samples.</p>
+<p><b>(iv) Scheduled versus actual releases.</b> (1) The model is <i>trained</i> on schedules as known at issuance, not
+on what was actually released, so it learns how far schedules are typically honoured. (2) In the history window, the
+<i>recorded</i> release replaces the schedule as soon as it exists. The difference (recorded − scheduled) is an explicit
+input, so the model can discount a schedule that is not being followed. (3) If the recorded release deviates from the
+schedule by more than a tolerance, operators are alerted. The forecast is then run twice, once with the announced
+schedule and once with "current release persists", and both are published as a scenario band. Each run is a single
+forward pass, so this costs almost nothing. (4) S1's own level confirms the true release within its travel time, and all
+downstream forecasts correct automatically at the next issuance.</p>
+<p><b>Feasibility of a 10-minute cycle.</b> The network has roughly 10<sup>5</sup> parameters. One forecast costs about
+4×10<sup>7</sup> multiply-adds in the T block (6 layers × 7 nodes × 72 steps × 3·32·64) and about 4×10<sup>6</sup> in
+the S block (4 rounds × 6 edges × 72 queries × ≤ 72 lags × 32). That is under 0.1 GFLOP, a few milliseconds on one CPU
+core. Even an ensemble of 5 models × 2 release scenarios takes well under a second. The cycle is dominated by data
+ingestion, quality control and alignment, which take seconds, leaving minutes of margin. Training is offline: about
+5 years × 52,560 issuances per year is about 2.6×10<sup>5</sup> samples, which trains in minutes to hours on one GPU or
+CPU. We retrain quarterly and when drift monitoring triggers.</p>
+
+<h2>6. Uncertainty, limitations, and additional information</h2>
+<p><b>Uncertainty treatment.</b> There are two sources. Aleatoric uncertainty is the irreducible variability given the
+inputs. It is represented by the predicted quantiles. Epistemic uncertainty is the model's own uncertainty, for example
+at floods larger than any in the record. It is estimated from the spread of an ensemble of 5 models trained with
+different seeds. The interval shown to users is the conformal-calibrated quantile interval, widened by the ensemble
+spread. Coverage is tracked separately for normal and flood periods.</p>
+<table class="assume">
+<thead><tr><th>Uncertainty / limitation</th><th>Impact on forecasts</th><th>Our response / what remains unresolved</th></tr></thead>
+<tbody>
+<tr><td><b>Unmonitored tributary</b> (between S2 and S3)</td><td>Its inflow is unobserved, so sudden rises from local storms appear at S3, and then S4, with no upstream warning. Errors are larger at S3/S4 than at S1/S2, especially in convective rain.</td><td>Latent node U driven by R2 rainfall. S3's history reveals the current contribution. Intervals at S3/S4 are calibrated separately and are wider. <i>Unresolved</i>: the first part of a sudden tributary flood cannot be anticipated better than R2 allows.</td></tr>
+<tr><td><b>Changing travel times</b></td><td>A wrong lag shifts the predicted arrival of a rise. Peak-timing errors matter most at high flow.</td><td>State-dependent lag attention within physically capped windows, plus flood-weighted training. <i>Unresolved</i>: floods beyond the observed range may travel faster than anything seen, so lags there are extrapolated.</td></tr>
+<tr><td><b>Future rainfall</b> (unknown at issuance)</td><td>Rain in the next hour on small local catchments (around S1 and S4) can raise levels within the horizon.</td><td>Not modelled (A10). Wider intervals when recent rain intensity is high. Fixed by request 2 below.</td></tr>
+<tr><td><b>Only two rain gauges</b></td><td>Convective cells can miss both gauges, so rain-driven rises are under-predicted.</td><td>The learned mapping <i>C</i> and the node histories compensate partly. Radar data would fix this (request 2).</td></tr>
+<tr><td><b>Release deviations / unannounced spills</b></td><td>An unannounced change propagates to S1–S4 without warning.</td><td>Scenario band and alerts (Section 5 iv). S1 detects the change within its travel time.</td></tr>
+<tr><td><b>Rare extremes</b> (few floods in the record)</td><td>The quantiles may be poorly calibrated exactly when it matters most.</td><td>Flood weighting, ensemble spread, coverage monitored separately for floods, and a persistence-plus-routing fallback for comparison. Needs request 6.</td></tr>
+<tr><td><b>Sensor faults, datum or rating changes, drift</b></td><td>Systematic bias at one station that also contaminates downstream inputs.</td><td>Quality control, masking augmentation, and drift monitoring of each station's residuals against its neighbours.</td></tr>
+<tr><td><b>Non-stationarity</b> (channel changes, new operating rules, snowmelt regimes)</td><td>Performance degrades slowly over time.</td><td>Season code, quarterly retraining, and rolling evaluation.</td></tr>
+<tr><td><b>Backwater near confluences</b> (A8 violated)</td><td>Small level errors at S2/S3 during high tributary flow.</td><td>A station's own history partly captures it. Reverse edges could be added if residuals show a pattern.</td></tr>
+</tbody></table>
+
+<p><b>Additional information requests</b> (in priority order; the system is designed to run without any of them):</p>
+<table class="spec">
+<thead><tr><th>#</th><th>Request</th><th>How it helps</th><th>Usable without it?</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>A temporary or permanent level/flow gauge on the unmonitored tributary, or a rain gauge in its catchment</td><td>Turns U into an observed node, the single biggest improvement for S3 and S4</td><td>Yes: U stays latent, with wider S3/S4 intervals</td></tr>
+<tr><td>2</td><td>Weather-radar rainfall estimates and 0–2 h rainfall nowcasts</td><td>Captures rain the gauges miss and rain falling during the forecast hour</td><td>Yes: gauge rain only (A10)</td></tr>
+<tr><td>3</td><td>Rating curves, channel cross-sections, any travel-time or tracer studies</td><td>Sharpens the travel-time prior and lag caps (A9). Would make a hydraulic-routing hybrid possible.</td><td>Yes: lags are learned within broad bounds</td></tr>
+<tr><td>4</td><td>Telemetry metadata: data-arrival times, maintenance logs, quality flags, datum changes</td><td>Realistic delay and missingness simulation (A3, A4); removes known bad data</td><td>Yes: assumed delay and gap model</td></tr>
+<tr><td>5</td><td>Reservoir operating rules, gate settings, and the history of schedule revisions and deviations</td><td>Better handling of schedule reliability and unannounced spills (A7)</td><td>Yes: reliability is learned from the record</td></tr>
+<tr><td>6</td><td>Longest available historical record including past flood events, and the flood thresholds per station</td><td>More extreme events to train and calibrate on. Thresholds define the loss weights and evaluation (A1, A14).</td><td>Yes, but flood-time reliability is less certain</td></tr>
+<tr><td>7</td><td>Air temperature and snow data for the headwaters; catchment boundaries (DEM)</td><td>Snowmelt contribution (A12); a better initial rain-to-node map <i>C</i> (A6)</td><td>Yes: season code and the learned <i>C</i></td></tr>
+</tbody></table>
+</section>
