@@ -18,11 +18,17 @@ terms in a different order, and they go through the GPU in different batch posit
 rounding-error level (Table 6), not exactly zero.</p>
 </div>
 
-<p><b>Choice of final model: symmetrised D</b>, the default the handout specifies. The optional D+B model was not
-trained. Table 5 does not give a strong reason to expect D+B to beat symmetrised D. Symmetry augmentation on its own (A → B) changed accuracy by
-only a few per cent and reduced but did not remove the inconsistency. The wrapper removes the inconsistency exactly
-(Table 6) without any loss in accuracy, so stacking the two would at most sharpen the averaged predictions a little.
-Symmetrised D is the only model that combines exact mirror/rotation consistency with good accuracy at 2× and 3×.</p>
+<p><b>Choice of final model: symmetrised D</b> (the handout's default), confirmed against the optional symmetrised
+D+B, which we also trained. Choosing between the two on the test set would break the rule against using the test split to
+select designs, so the decision rule was fixed and committed <i>before</i> D+B finished training
+(<span class="mono">scripts/select_final.py</span>, commit <span class="mono">9b45324</span>). The rule: take the lower
+mean <b>validation</b> E<sup>(2)</sup> over 1×, 2× and 3× (averaged over both seeds), keeping the default unless the
+difference exceeds the seed-to-seed spread. On validation, symmetrised D scores 0.02850 and symmetrised D+B 0.02862,
+a tie (D+B is even slightly worse) well inside the spread of 0.00093. So the final model remains <b>symmetrised D</b>.
+Table 5 shows why D+B cannot do better once it is wrapped. Symmetry augmentation makes the <i>raw</i> model far more
+consistent (C<sub>R</sub> 0.0019 → 0.00047, the lowest of any learned model) at no cost in speed generalisation. But the
+wrapper already makes <i>any</i> model exactly consistent, and on the original clips D+B is no more accurate than D
+(E<sup>(5)</sup> 0.0277 against 0.0274).</p>
 
 <p class="tcap"><b>Table 6.</b> Symmetrised models (Eq. 7), using the Table 5 columns. Training time is that of the
 underlying learned model (symmetrisation needs no training). Inference time covers all eight transformations, the
@@ -56,6 +62,11 @@ Question2/gifs/fig6a_final_R_v9733.gif, Question2/gifs/fig6a_final_R_v9031.gif</
 <tr><td>Accuracy, transformed clips</td><td>E<sub>M</sub> 0.0230, E<sub>R</sub> 0.0229</td><td>E<sub>M</sub> = E<sub>R</sub> = E<sup>(5)</sup> exactly (0.0224 / 0.0273)</td></tr>
 <tr><td>Inference, 1,000 videos</td><td>0.93 s</td><td>15.7 s / 16.4 s (≈ 16–17× slower than B / D)</td></tr>
 </tbody></table>
+<p>The optional D+B adds a third data point. Learning the symmetry on top of speed augmentation brings the raw model
+close to equivariance (C<sub>M</sub> 0.00053, C<sub>R</sub> 0.00047, and E<sub>M</sub>, E<sub>R</sub> within 0.1% of
+its E<sup>(5)</sup>) at normal inference cost (0.99 s). It is still not exactly zero, and wrapping it (symmetrised D+B,
+Table 6) gives the same accuracy as symmetrised D (E<sup>(5)</sup> 0.0276 against 0.0273). Learned symmetry is the
+cheap approximation; built-in symmetry is the exact but roughly 16× more expensive guarantee.</p>
 <p><b>The built-in symmetry is exact; the learned one is not.</b> Augmentation only adds a penalty for inconsistency on
 the training samples it happens to draw. A network with finite capacity and 30 epochs of training approximates the
 symmetry, imperfectly and only near the training data. The symmetrised forecaster is equivariant <i>by construction</i>:

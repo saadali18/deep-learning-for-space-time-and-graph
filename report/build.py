@@ -113,9 +113,9 @@ def table5():
 def table6():
     t = load("table6.json")
     rows = t["rows"]
-    models = [("Symmetrised B", "sym:B"), ("Symmetrised D (final)", "sym:D")]
-    if t["final"] not in ("sym:B", "sym:D"):
-        models.append(("Symmetrised D+B (final)", t["final"]))
+    names = {"sym:B": "Symmetrised B", "sym:D": "Symmetrised D", "sym:DB": "Symmetrised D+B"}
+    models = [(names[n] + (" (final)" if n == t["final"] else ""), n)
+              for n in ("sym:B", "sym:D", "sym:DB") if f"{n}_s0" in rows]
     return t56(rows, models)
 
 

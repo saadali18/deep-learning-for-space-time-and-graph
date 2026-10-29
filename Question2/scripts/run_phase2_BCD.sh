@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Phase 2 (after the Q2.11 predictions are committed): models B, C, the model-D candidates and D.
 # Runs whose checkpoint already exists are skipped, so the script can be resumed.
-# The optional D+B model is not trained (see the report).
+# The optional D+B model is trained separately by run_phase3_DB.sh.
 set -e
 cd "$(dirname "$0")/.."
 PY=../.venv/bin/python

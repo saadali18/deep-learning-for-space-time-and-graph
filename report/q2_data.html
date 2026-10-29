@@ -4,7 +4,8 @@ with these changes. <b>B</b>: for each training window, <i>g</i> is drawn unifor
 (including the identity) and the same <i>g</i> is applied to the input and the target. <b>C</b>: for each window, <i>k</i>
 is drawn uniformly from {1, 2, 3}, then <i>t</i> uniformly from that speed's allowed starts ({1..14}, {1..8}, {1, 2}).
 Only the existing target frames enter the loss, and each video is weighted equally. <b>D</b>: the same data as C with a
-larger-reach architecture (Q2.12). The optional D+B model was not trained (see Section 5).</p>
+larger-reach architecture (Q2.12). <b>D+B</b> (optional): D's architecture trained with <i>both</i> speed and symmetry
+augmentation. It is reported as an extra row of Table 5 and is discussed in Section 5.</p>
 
 <div class="qa prereg"><b>Q2.11 — predictions, reproduced verbatim as first written</b>
 <p class="stamp">Committed after Testing the Baseline and before any of B, C, D (or a D candidate) was trained:
@@ -17,7 +18,7 @@ augmentation) will be the only model that also works at 3×, with E(2) at 3× mu
 B–D should lose more than a little accuracy on the original 1× clips.</p>
 </div>
 
-<p class="tcap"><b>Table 5.</b> Models A–D on the 1,000 test videos. E<sup>(5)</sup>, C<sub>T</sub> and E<sub>T</sub> are
+<p class="tcap"><b>Table 5.</b> Models A–D and the optional D+B on the 1,000 test videos. E<sup>(5)</sup>, C<sub>T</sub> and E<sub>T</sub> are
 at 1× with <i>t</i> = 1. E<sup>(2)</sup> is at 1×, 2× and 3×. Entries are mean (seed 0, seed 1). Training time is the
 mean wall-clock time per epoch over the 30 epochs. Inference time is the wall-clock time to predict all 1,000 original test
 videos at batch size 32 (best of 3 repeats). Hardware: Apple M3 Pro GPU (MPS).</p>
@@ -68,7 +69,8 @@ would leave. That covers the median 3× displacement of about 10 px (Q2.1). The 
 <td><b>A → B</b> changes only what the digits look like in training (motion statistics are unchanged, Q2.1). C<sub>R</sub>
 halves (0.0028 → 0.0014), C<sub>M</sub> drops (0.0017 → 0.0012), and the rotation penalty disappears: E<sub>M</sub> =
 0.0230 and E<sub>R</sub> = 0.0229 against E<sup>(5)</sup> = 0.0230. The speed-augmented models C and D, which saw no new
-appearances, keep C<sub>R</sub> at 0.0019–0.0026.</td></tr>
+appearances, keep C<sub>R</sub> at 0.0019–0.0026. Adding symmetry augmentation to D (<b>D → D+B</b>) cuts C<sub>R</sub>
+from 0.0019 to 0.00047 while leaving every speed error unchanged, which confirms the same label.</td></tr>
 <tr><td>Collapse at 2× (E<sup>(2)</sup> 0.0443, about Blank)</td><td><b>Unfamiliar motion</b></td>
 <td><b>A → C</b> keeps the architecture and its 8 px reach and only adds faster motion to training. E<sup>(2)</sup> at 2×
 falls 35% (0.0443 → 0.0288). B, which saw no faster motion, stays at 0.0436.</td></tr>

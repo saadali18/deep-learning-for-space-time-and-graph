@@ -40,6 +40,8 @@ $PY -m scripts.figure1_flow           # Figure 1
 $PY -m scripts.baseline_table2        # Table 2, Figure 2
 $PY -m scripts.test_baseline          # Tables 3-4, Figures 3-5 (+ GIFs)
 ./scripts/run_phase2_BCD.sh           # models B, C, D candidates (validation choice), D
-$PY -m scripts.final_tables          # Tables 5-6, Figure 6 (+ GIFs)
+./scripts/run_phase3_DB.sh            # optional D+B (seeds 0, 1)
+$PY -m scripts.select_final           # final model chosen on validation: symmetrised D vs D+B
+$PY -m scripts.final_tables --final D --with-db   # Tables 5-6, Figure 6 (+ GIFs)
 cd ../report && ../.venv/bin/python build.py       # report.html -> report.pdf
 ```

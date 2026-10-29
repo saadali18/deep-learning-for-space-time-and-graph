@@ -32,7 +32,8 @@ def main():
     t5 = table(["A", "B", "C", "D"] + (["DB"] if a.with_db else []))
     with open(os.path.join(RES_DIR, "table5.json"), "w") as fh:
         json.dump(t5, fh, indent=1)
-    sym = ["sym:B", "sym:D"] + ([f"sym:{a.final}"] if a.final not in ("B", "D") else [])
+    sym = ["sym:B", "sym:D"] + (["sym:DB"] if a.with_db else [])
+    sym += [f"sym:{a.final}"] if f"sym:{a.final}" not in sym else []
     t6 = table(sym)
     with open(os.path.join(RES_DIR, "table6.json"), "w") as fh:
         json.dump(dict(rows=t6, final=f"sym:{a.final}"), fh, indent=1)
