@@ -64,13 +64,13 @@ would leave. That covers the median 3× displacement of about 10 px (Q2.1). The 
 <table class="spec">
 <thead><tr><th>Failure of model A</th><th>Label</th><th>Supporting comparison (Table 5, mean of two seeds)</th></tr></thead>
 <tbody>
-<tr><td>Mirror/rotation inconsistency, larger for rotation (C<sub>M</sub> = 0.0017, C<sub>R</sub> = 0.0028; E<sub>R</sub> 7.5% above E<sup>(5)</sup>)</td>
+<tr><td>Mirror/rotation inconsistency, larger for rotation (C<sub>M</sub> = 1.66×10<sup>−3</sup>, C<sub>R</sub> = 2.83×10<sup>−3</sup>; E<sub>R</sub> 7.5% above E<sup>(5)</sup>)</td>
 <td><b>Appearance</b></td>
 <td><b>A → B</b> changes only what the digits look like in training (motion statistics are unchanged, Q2.1). C<sub>R</sub>
-halves (0.0028 → 0.0014), C<sub>M</sub> drops (0.0017 → 0.0012), and the rotation penalty disappears: E<sub>M</sub> =
+halves (2.83×10<sup>−3</sup> → 1.40×10<sup>−3</sup>), C<sub>M</sub> drops (1.66×10<sup>−3</sup> → 1.22×10<sup>−3</sup>), and the rotation penalty disappears: E<sub>M</sub> =
 0.0230 and E<sub>R</sub> = 0.0229 against E<sup>(5)</sup> = 0.0230. The speed-augmented models C and D, which saw no new
-appearances, keep C<sub>R</sub> at 0.0019–0.0026. Adding symmetry augmentation to D (<b>D → D+B</b>) cuts C<sub>R</sub>
-from 0.0019 to 0.00047 while leaving every speed error unchanged, which confirms the same label.</td></tr>
+appearances, keep C<sub>R</sub> at 1.89×10<sup>−3</sup>–2.57×10<sup>−3</sup>. Adding symmetry augmentation to D (<b>D → D+B</b>) cuts C<sub>R</sub>
+from 1.89×10<sup>−3</sup> to 4.72×10<sup>−4</sup> while leaving every speed error unchanged, which confirms the same label.</td></tr>
 <tr><td>Collapse at 2× (E<sup>(2)</sup> 0.0443, about Blank)</td><td><b>Unfamiliar motion</b></td>
 <td><b>A → C</b> keeps the architecture and its 8 px reach and only adds faster motion to training. E<sup>(2)</sup> at 2×
 falls 35% (0.0443 → 0.0288). B, which saw no faster motion, stays at 0.0436.</td></tr>

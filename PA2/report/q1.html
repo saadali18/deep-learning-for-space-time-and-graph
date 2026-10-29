@@ -245,7 +245,8 @@ inputs. It is represented by the predicted quantiles. Epistemic uncertainty is t
 at floods larger than any in the record. It is estimated from the spread of an ensemble of 5 models trained with
 different seeds. The interval shown to users is the conformal-calibrated quantile interval, widened by the ensemble
 spread. Coverage is tracked separately for normal and flood periods.</p>
-<table class="assume">
+<table class="limits">
+<colgroup><col style="width:24%"><col style="width:33%"><col style="width:43%"></colgroup>
 <thead><tr><th>Uncertainty / limitation</th><th>Impact on forecasts</th><th>Our response / what remains unresolved</th></tr></thead>
 <tbody>
 <tr><td><b>Unmonitored tributary</b> (between S2 and S3)</td><td>Its inflow is unobserved, so sudden rises from local storms appear at S3, and then S4, with no upstream warning. Errors are larger at S3/S4 than at S1/S2, especially in convective rain.</td><td>Latent node U driven by R2 rainfall. S3's history reveals the current contribution. Intervals at S3/S4 are calibrated separately and are wider. <i>Unresolved</i>: the first part of a sudden tributary flood cannot be anticipated better than R2 allows.</td></tr>

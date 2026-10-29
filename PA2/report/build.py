@@ -64,7 +64,7 @@ def table2():
     t = {**{k: v for k, v in t.items()}}
     body = []
     for label, base in [("Model A", "A"), ("Blank", "Blank"), ("Copy-last", "Copy-last")]:
-        body.append([label] + [ms(t, base, f"MSE{h}") for h in range(1, 6)] + [ms(t, base, "E5"),
+        body.append([label] + [ms2(t, base, f"MSE{h}") for h in range(1, 6)] + [ms2(t, base, "E5"),
                      f"{t[base + '_s0' if base == 'A' else base]['params']:,}"])
     return html_table(["Predictor", "MSE<sub>1</sub>", "MSE<sub>2</sub>", "MSE<sub>3</sub>", "MSE<sub>4</sub>",
                        "MSE<sub>5</sub>", "E<sup>(5)</sup>", "Params"], body)
@@ -92,6 +92,8 @@ T56_B = ["Model", "E<sup>(2)</sup> 1×", "E<sup>(2)</sup> 2×", "E<sup>(2)</sup>
 
 def ms2(rows, base, key, fmt_fn=fmt):
     """Mean on the first line, (seed 0, seed 1) on the second."""
+    if f"{base}_s0" not in rows:
+        return fmt_fn(rows[base][key])
     a, b = rows[f"{base}_s0"][key], rows[f"{base}_s1"][key]
     return f"{fmt_fn((a + b) / 2)}<br><span class='seeds'>({fmt_fn(a)}, {fmt_fn(b)})</span>"
 

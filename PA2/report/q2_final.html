@@ -24,9 +24,9 @@ select designs, so the decision rule was fixed and committed <i>before</i> D+B f
 (<span class="mono">scripts/select_final.py</span>, commit <span class="mono">9b45324</span>). The rule: take the lower
 mean <b>validation</b> E<sup>(2)</sup> over 1×, 2× and 3× (averaged over both seeds), keeping the default unless the
 difference exceeds the seed-to-seed spread. On validation, symmetrised D scores 0.02850 and symmetrised D+B 0.02862,
-a tie (D+B is even slightly worse) well inside the spread of 0.00093. So the final model remains <b>symmetrised D</b>.
+a tie (D+B is even slightly worse) well inside the spread of 9.26×10<sup>−4</sup>. So the final model remains <b>symmetrised D</b>.
 Table 5 shows why D+B cannot do better once it is wrapped. Symmetry augmentation makes the <i>raw</i> model far more
-consistent (C<sub>R</sub> 0.0019 → 0.00047, the lowest of any learned model) at no cost in speed generalisation. But the
+consistent (C<sub>R</sub> 1.89×10<sup>−3</sup> → 4.72×10<sup>−4</sup>, the lowest of any learned model) at no cost in speed generalisation. But the
 wrapper already makes <i>any</i> model exactly consistent, and on the original clips D+B is no more accurate than D
 (E<sup>(5)</sup> 0.0277 against 0.0274).</p>
 
@@ -57,13 +57,13 @@ Question2/gifs/fig6a_final_R_v9733.gif, Question2/gifs/fig6a_final_R_v9031.gif</
 <table class="spec">
 <thead><tr><th></th><th>Learned (model B)</th><th>Built in (symmetrised B / D)</th></tr></thead>
 <tbody>
-<tr><td>Consistency</td><td>C<sub>M</sub> = 0.0012, C<sub>R</sub> = 0.0014: about half of A's C<sub>R</sub>, but clearly non-zero</td><td>C<sub>M</sub>, C<sub>R</sub> ≈ 5–8×10<sup>−17</sup>: zero up to rounding</td></tr>
+<tr><td>Consistency</td><td>C<sub>M</sub> = 1.22×10<sup>−3</sup>, C<sub>R</sub> = 1.40×10<sup>−3</sup>: about half of A's C<sub>R</sub>, but clearly non-zero</td><td>C<sub>M</sub>, C<sub>R</sub> ≈ 5–8×10<sup>−17</sup>: zero up to rounding</td></tr>
 <tr><td>Accuracy, original clips (E<sup>(5)</sup> 1×)</td><td>0.0230</td><td>symmetrised B 0.0224 (slightly <i>better</i> than B); symmetrised D 0.0273 (= D's 0.0274)</td></tr>
 <tr><td>Accuracy, transformed clips</td><td>E<sub>M</sub> 0.0230, E<sub>R</sub> 0.0229</td><td>E<sub>M</sub> = E<sub>R</sub> = E<sup>(5)</sup> exactly (0.0224 / 0.0273)</td></tr>
-<tr><td>Inference, 1,000 videos</td><td>0.93 s</td><td>15.7 s / 16.4 s (≈ 16–17× slower than B / D)</td></tr>
+<tr><td>Inference, 1,000 videos</td><td>0.93 s</td><td>15.7 s / 16.4 s (≈ 17× / 16× slower than B / D)</td></tr>
 </tbody></table>
 <p>The optional D+B adds a third data point. Learning the symmetry on top of speed augmentation brings the raw model
-close to equivariance (C<sub>M</sub> 0.00053, C<sub>R</sub> 0.00047, and E<sub>M</sub>, E<sub>R</sub> within 0.1% of
+close to equivariance (C<sub>M</sub> 5.26×10<sup>−4</sup>, C<sub>R</sub> 4.72×10<sup>−4</sup>, and E<sub>M</sub>, E<sub>R</sub> within 0.1% of
 its E<sup>(5)</sup>) at normal inference cost (0.99 s). It is still not exactly zero, and wrapping it (symmetrised D+B,
 Table 6) gives the same accuracy as symmetrised D (E<sup>(5)</sup> 0.0276 against 0.0273). Learned symmetry is the
 cheap approximation; built-in symmetry is the exact but roughly 16× more expensive guarantee.</p>
@@ -71,8 +71,8 @@ cheap approximation; built-in symmetry is the exact but roughly 16× more expens
 the training samples it happens to draw. A network with finite capacity and 30 epochs of training approximates the
 symmetry, imperfectly and only near the training data. The symmetrised forecaster is equivariant <i>by construction</i>:
 the group-averaging argument above holds for any weights. The cost is inference. Eight forward passes on an 8× larger
-batch, plus the transformations, make it about 16–17× slower here (a little worse than 8× because of the transformation
-copies and the larger batches).</p>
+batch, plus the transformations, make it about 16–17× slower here, roughly twice the ideal 8×, because of the transformation
+copies and the larger batches.</p>
 <p><b>When averaging would hurt.</b> Averaging eight predictions blurs whenever they <i>disagree</i>: if the base model
 is strongly tied to appearance and makes bad predictions on transformed inputs, the average mixes a sharp, correct
 prediction with seven misplaced ones, producing ghosts and blur. It would also hurt if the true dynamics were not
@@ -97,7 +97,7 @@ hedging, while a sharpness-sensitive metric would penalise it.</p>
 <tr><td><b>Final: symmetrised D</b></td><td>7.55×10<sup>−17</sup></td><td>0.0333</td><td>44.6 (rows 3 = 4)</td><td>21.4</td></tr>
 </tbody></table>
 <p><b>Partly.</b> The disagreement between rows 3 and 4, which was the subject of Q2.7, is gone completely: rows 3 and 4
-of Figure 6(a) are identical, and E<sub>R</sub> on this clip is the lowest of all models (0.0333 against 0.0366 for A).
+of Figure 6(a) are identical, and E<sub>R</sub> on this clip is the lowest of all models (0.0333, just below B's 0.0335 and well below A's 0.0366).
 <b>Symmetrisation fixed the inconsistency</b> exactly, by construction. <b>The missed bounce is partly repaired</b>: the "∞" now turns upwards (row 44.6 at <i>h</i> = 5 against 47.6 for
 A), but still too late and too weakly. This part comes from <b>speed augmentation</b>, not from symmetrisation. The
 unsymmetrised C and D already turn the "∞" (rows 45.0 and 44.6), whereas B, which saw only 1× clips, barely does
@@ -113,9 +113,9 @@ speeds (Q2.14) and from the eight-way average.</p>
 <p>Largely yes. It learned <i>where</i> things move, though not <i>what</i> is moving. The final model forecasts
 mirrored and rotated clips exactly as well as the originals (C<sub>T</sub> ≈ 10<sup>−16</sup>,
 E<sub>M</sub> = E<sub>R</sub> = E<sup>(5)</sup>). At 3× its error is only 34% above its 1× error (model A: +172%), and it
-stays far below Blank and Copy-last throughout. A sceptic should be convinced by tests that change appearance or speed
+stays clearly below Blank and Copy-last at every speed. A sceptic should be convinced by tests that change appearance or speed
 but keep the motion rule: unseen shapes (letters), or speeds between and beyond 1–3× (1.5×, 4×), with error growing
-smoothly with displacement. One test it still fails is <b>object identity through overlap</b>: when two digits cross
-(videos 9007 and 9013), it merges them into one blob and never separates them again. Its long-horizon frames are
-blurry, not sharp.</p>
+smoothly with displacement. One test it has not passed is <b>object identity through overlap</b>: model A merged
+crossing digits into one blob (videos 9007 and 9013, Figure 2), nothing in B–D targets this, and the final model's
+frames are even blurrier.</p>
 </div>

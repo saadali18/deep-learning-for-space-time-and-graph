@@ -4,7 +4,7 @@ and about a third of Copy-last's (0.0641), and it beats both at every horizon. C
 a moving digit copied in the wrong place is penalised twice: once where it is drawn but is not, and once where it should
 be but is not. Model A therefore really predicts where the digits go, which neither reference can do.</p>
 <p><b>Error over horizons</b>: MSE grows monotonically from 0.0172 at <i>h</i> = 1 to 0.0261 at <i>h</i> = 5, about +52%.
-The growth slows with <i>h</i> (+0.0034, +0.0022, +0.0017, +0.0016 per step). Figure 2 shows why. Uncertainty about
+The growth slows with <i>h</i> (+0.00336, +0.00225, +0.00169, +0.00162 per step). Figure 2 shows why. Uncertainty about
 position and shape builds up, and under a squared-error loss the best response to uncertainty is to <i>average</i> over
 possibilities, so predictions become smoother and dimmer with each step. They are also fed back as inputs, so the network
 then works from its own blurred frames. Even at <i>h</i> = 5 model A is still 39% below Blank, so the predicted blobs
@@ -67,7 +67,7 @@ Figure 3, which are the two largest values of each gap.</figcaption>
 <div class="qa"><b>Q2.6</b>
 <p>Blank and Copy-last have C<sub>M</sub> = C<sub>R</sub> = 0 exactly. An all-zero frame is unchanged by any pixel
 permutation, and "repeat the last frame" commutes with any transformation applied to all frames. Yet they are the
-<i>worst</i> predictors in Table 3 (E<sub>T</sub> = 0.0426 and 0.0641, against 0.0229–0.0240 for model A). So a small
+<i>worst</i> predictors in Table 3 (E<sub>T</sub> = 0.0426 and 0.0641, against 0.0229–0.0239 for model A). So a small
 consistency gap on its own says nothing about whether a model has learned motion. Any predictor that ignores the content
 in a symmetric way, or does nothing at all, is perfectly consistent. C<sub>T</sub> only asks whether the model treats
 <i>X</i> and <i>T</i>(<i>X</i>) in the same way, not whether that way is right. The transformed error
@@ -79,9 +79,11 @@ E<sub>T</sub> just means "consistently wrong".</p>
 </div>
 
 <div class="qa"><b>Q2.7 — Video 9733 under rotation (Figure 3, largest C<sub>R</sub>)</b>
-<p>In the original clip an 8 moves left towards the left wall and a 3 moves right. After the 90° anticlockwise rotation,
-the left wall becomes the <i>bottom</i> wall. The rotated 8 (an "∞") travels down-left, hits the bottom wall at about
-<i>h</i> = 2, and bounces back up. The rotated 3 (an "m") moves straight down at about 3.5 px/frame. Below, (row, column)
+<p>In the original clip an 8 moves left towards the left wall, and a 3 moves right and bounces off the right wall at
+about the last input frame. After the 90° anticlockwise rotation, the left wall becomes the <i>bottom</i> wall and the
+right wall the <i>top</i> wall. The rotated 8 (an "∞") travels down-left, hits the bottom wall at about
+<i>h</i> = 2, and bounces back up. The rotated 3 (an "m") moves up, bounces off the top wall at the end of the input, and then moves straight down at
+about 3.5 px/frame. Below, (row, column)
 is the intensity centroid of each digit in the 64×64 frame, from row (2) <i>R</i>(<i>Y</i>), row (3)
 <i>f</i>(<i>R X</i>) and row (4) <i>R</i>(<i>f</i>(<i>X</i>)):</p>
 <table class="spec">
@@ -101,21 +103,22 @@ the bottom wall: its row stays at 48–49 from <i>h</i> = 2 to 4, and by <i>h</i
 rises 8 px after bouncing at <i>h</i> = 2. On the original clip the same model handles the same bounce off the left wall
 correctly, so row 4 bounces at <i>h</i> = 2–3 and rises 5 px. Its horizontal motion (the column) is right in both rows.
 Only the reflection is lost.</li>
-<li><b>The other digit stalls and fades.</b> In row 3 the "m" does not move at all for the first forecast step (row 12.1
-→ 11.7, against a true +4 px). It then moves down more slowly and ends 4.7 px behind the truth. Its peak brightness
+<li><b>The other digit also misses its bounce, then fades.</b> In row 3 the "m" keeps pressing against the top wall for
+the first forecast step (row 12.1 → 11.7, against a true +4 px after the bounce). It then moves down more slowly and ends 4.7 px behind the truth. Its peak brightness
 drops from 0.73 to 0.48, so it is turning into a dim blur. In row 4 the 3 moves steadily at about 3 px/frame, 2 px
 behind the truth.</li>
 </ol>
-<p>So for this clip the model's account of the motion changes from "an 8 bounces off a wall and a 3 moves away" to
-"a sideways 8 slides along the floor and a sideways 3 hesitates and dissolves". The motion itself (a bounce off a wall,
-constant downward velocity) is just as common in training as the original. What is new is only that the shapes doing
+<p>So for this clip the model's account of the motion changes from "an 8 and a 3 each bounce off a wall and move
+away" to "a sideways 8 slides along the floor and a sideways 3 sticks to the ceiling, hesitates and dissolves". The
+motion itself (bounces off walls at constant speed) is just as common in training as the original. What is new is only that the shapes doing
 the moving are lying on their side.</p>
 </div>
 
 <div class="qa"><b>Q2.8</b>
 <p><b>Yes, rotation is harder than mirroring for model A, and the effect is consistent across both seeds.</b>
-E<sub>R</sub> − E<sup>(5)</sup> = 0.0017 (+7.5%) against E<sub>M</sub> − E<sup>(5)</sup> = 0.0006 (+2.6%). C<sub>R</sub>
-(0.0028) is about 1.7× C<sub>M</sub> (0.0017), and the C<sub>R</sub> histogram in Figure 4 has a heavier right tail.</p>
+E<sub>R</sub> − E<sup>(5)</sup> = 1.68×10<sup>−3</sup> (+7.5%) against E<sub>M</sub> − E<sup>(5)</sup> = 5.89×10<sup>−4</sup> (+2.6%). C<sub>R</sub>
+(2.83×10<sup>−3</sup>) is about 1.7× C<sub>M</sub> (1.66×10<sup>−3</sup>), and the C<sub>R</sub> histogram in Figure 4 has a heavier right tail. Both penalties are smaller than I predicted in Q2.5 (E<sub>M</sub> 10–30% above
+E<sup>(5)</sup>): model A is closer to mirror- and rotation-consistent than I expected.</p>
 <p><b>The cause is appearance, not motion.</b> By Q2.1, neither transformation creates unfamiliar <i>motion</i>: every
 direction a mirrored or rotated trajectory contains is common in training, and speeds are unchanged. On 1,000 videos, the
 90° rotation moves the direction histogram only slightly more than the mirror does (TV 0.10 against 0.08). Both are
